@@ -6,11 +6,11 @@
 
 ## 2. OKX market-data vendor
 
-- [ ] 2.1 Create `tradingagents/dataflows/okx.py` with public API client for `/api/v5/market/history-candles`.
-- [ ] 2.2 Implement `get_okx_stock_data(symbol, start_date, end_date)` returning CSV string in Yahoo-compatible format.
-- [ ] 2.3 Implement `load_okx_ohlcv(symbol, curr_date)` returning `Date,Open,High,Low,Close,Volume` DataFrame.
-- [ ] 2.4 Add retry/backoff for OKX rate-limit responses.
-- [ ] 2.5 Add unit tests for OKX response parsing and pagination handling.
+- [x] 2.1 Create `tradingagents/dataflows/okx.py` with public API client for `/api/v5/market/history-candles`.
+- [x] 2.2 Implement `get_okx_stock_data(symbol, start_date, end_date)` returning CSV string in Yahoo-compatible format.
+- [x] 2.3 Implement `load_okx_ohlcv(symbol, curr_date)` returning `Date,Open,High,Low,Close,Volume` DataFrame.
+- [x] 2.4 Add retry/backoff for OKX rate-limit responses.
+- [x] 2.5 Add unit tests for OKX response parsing and pagination handling.
 
 ## 3. Vendor routing integration
 
