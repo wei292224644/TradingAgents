@@ -18,6 +18,7 @@ from .errors import (
     VendorRateLimitError,
 )
 from .fred import get_macro_data as get_fred_macro_data
+from .news_rss import get_news_google_rss
 from .okx import get_okx_stock_data
 from .polymarket import get_prediction_markets as get_polymarket_prediction_markets
 from .y_finance import (
@@ -84,6 +85,7 @@ VENDOR_LIST = [
     "polymarket",
     "alpha_vantage",
     "okx",
+    "google_rss",
 ]
 
 # Optional enrichment categories. These add macro/event context to the news
@@ -127,6 +129,7 @@ VENDOR_METHODS = {
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
         "yfinance": get_news_yfinance,
+        "google_rss": get_news_google_rss,
     },
     "get_global_news": {
         "yfinance": get_global_news_yfinance,

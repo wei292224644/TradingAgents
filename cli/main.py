@@ -991,6 +991,16 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
         config["data_vendors"] = dict(
             config["data_vendors"], core_stock_apis="okx,yfinance"
         )
+    # Token-specific news for crypto comes from Google News RSS first (Yahoo
+    # has no coverage for most tokens); tool-level so get_global_news keeps
+    # the category default. Same explicit-override-wins rule.
+    if (
+        selections.get("asset_type") == "crypto"
+        and not config.get("tool_vendors", {}).get("get_news")
+    ):
+        config["tool_vendors"] = dict(
+            config.get("tool_vendors", {}), get_news="google_rss,yfinance"
+        )
     # --checkpoint/--no-checkpoint overrides only when explicitly given; omitting
     # the flag preserves TRADINGAGENTS_CHECKPOINT_ENABLED / the default (#976).
     if checkpoint is not None:

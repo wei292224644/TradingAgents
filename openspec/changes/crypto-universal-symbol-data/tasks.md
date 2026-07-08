@@ -32,10 +32,10 @@
 
 ## 6. Crypto news fallback
 
-- [ ] 6.1 Create `tradingagents/dataflows/news_rss.py` with Google News RSS fetcher for token-specific crypto headlines.
-- [ ] 6.2 Register the RSS news fetcher as a fallback vendor for `get_news`.
-- [ ] 6.3 Add date-window filtering and graceful degradation for empty results or network failures.
-- [ ] 6.4 Add unit tests for RSS parsing and date filtering.
+- [x] 6.1 Create `tradingagents/dataflows/news_rss.py` with Google News RSS fetcher for token-specific crypto headlines.
+- [x] 6.2 Register the RSS news fetcher as a fallback vendor for `get_news`.
+- [x] 6.3 Add date-window filtering and graceful degradation for empty results or network failures.
+- [x] 6.4 Add unit tests for RSS parsing and date filtering.
 
 ## 7. Integration and regression
 
