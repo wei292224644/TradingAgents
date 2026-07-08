@@ -67,3 +67,28 @@ def test_checkpoint_flag_overrides_env(flag):
     with mock.patch.object(m, "DEFAULT_CONFIG", patched):
         cfg = m._build_run_config(SELECTIONS, checkpoint=flag)
     assert cfg["checkpoint_enabled"] is flag
+
+
+def test_crypto_asset_selects_okx_vendor_chain():
+    selections = dict(SELECTIONS, asset_type="crypto")
+    cfg = m._build_run_config(selections, checkpoint=None)
+    assert cfg["data_vendors"]["core_stock_apis"] == "okx,yfinance"
+    # Never mutate the shared default config in place.
+    assert m.DEFAULT_CONFIG["data_vendors"]["core_stock_apis"] == "yfinance"
+
+
+def test_stock_asset_keeps_default_vendor_chain():
+    selections = dict(SELECTIONS, asset_type="stock")
+    cfg = m._build_run_config(selections, checkpoint=None)
+    assert cfg["data_vendors"]["core_stock_apis"] == "yfinance"
+
+
+def test_crypto_respects_explicit_vendor_override():
+    patched = dict(
+        m.DEFAULT_CONFIG,
+        data_vendors=dict(m.DEFAULT_CONFIG["data_vendors"], core_stock_apis="alpha_vantage"),
+    )
+    selections = dict(SELECTIONS, asset_type="crypto")
+    with mock.patch.object(m, "DEFAULT_CONFIG", patched):
+        cfg = m._build_run_config(selections, checkpoint=None)
+    assert cfg["data_vendors"]["core_stock_apis"] == "alpha_vantage"

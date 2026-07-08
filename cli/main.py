@@ -981,6 +981,16 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
     config["anthropic_effort"] = selections.get("anthropic_effort")
     config["output_language"] = selections.get("output_language", "English")
+    # Crypto assets price from OKX first (it lists meme coins Yahoo doesn't),
+    # with Yahoo as ordered fallback. Only applied when the vendor is still the
+    # shipped default — an explicit user/config override always wins.
+    if (
+        selections.get("asset_type") == "crypto"
+        and config["data_vendors"].get("core_stock_apis") == "yfinance"
+    ):
+        config["data_vendors"] = dict(
+            config["data_vendors"], core_stock_apis="okx,yfinance"
+        )
     # --checkpoint/--no-checkpoint overrides only when explicitly given; omitting
     # the flag preserves TRADINGAGENTS_CHECKPOINT_ENABLED / the default (#976).
     if checkpoint is not None:

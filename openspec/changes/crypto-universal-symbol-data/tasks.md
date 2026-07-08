@@ -21,8 +21,8 @@
 
 ## 4. CLI vendor-chain selection
 
-- [ ] 4.1 Update `_build_run_config` in `cli/main.py` to set `data_vendors.core_stock_apis` to `"okx,yfinance"` when `asset_type` is `crypto` and no explicit vendor override is present.
-- [ ] 4.2 Verify that BTC-USD and SPCXB-USDT analyses both pick the OKX-primary chain.
+- [x] 4.1 Update `_build_run_config` in `cli/main.py` to set `data_vendors.core_stock_apis` to `"okx,yfinance"` when `asset_type` is `crypto` and no explicit vendor override is present.
+- [x] 4.2 Verify that BTC-USD and SPCXB-USDT analyses both pick the OKX-primary chain.
 
 ## 5. Sentiment source mapping
 
