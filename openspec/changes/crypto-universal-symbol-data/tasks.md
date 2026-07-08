@@ -51,3 +51,4 @@
 - [ ] 7.2 Run a full analysis for `BTC-USD` and confirm behavior is consistent with pre-change baseline.
 - [ ] 7.3 Run a full analysis for `AAPL` and `EURUSD` to verify stock/forex paths are unchanged.
 - [x] 7.4 Run the test suite and fix regressions.
+- [x] 7.5 Fix StockTwits `UnicodeEncodeError` for non-ASCII crypto bases (e.g. `币安人生-USDT`) and verify the Binance-fallback OHLCV path completes.

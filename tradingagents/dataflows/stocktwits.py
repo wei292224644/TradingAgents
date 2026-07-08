@@ -46,7 +46,15 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
     symbol has no messages, or the response shape is unexpected — the
     caller never has to special-case None or exceptions.
     """
-    url = _API.format(ticker=_stocktwits_symbol(ticker))
+    mapped = _stocktwits_symbol(ticker)
+    try:
+        mapped.encode("ascii")
+    except UnicodeEncodeError:
+        # HTTP/1.1 request lines must be ASCII. StockTwits symbols with
+        # non-ASCII bases (e.g. Chinese meme-coin names) cannot be sent.
+        return f"<stocktwits unavailable: non-ASCII symbol {ticker}>"
+
+    url = _API.format(ticker=mapped)
     req = Request(url, headers={"User-Agent": _UA, "Accept": "application/json"})
     try:
         with urlopen(req, timeout=timeout) as resp:
