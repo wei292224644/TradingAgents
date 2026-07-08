@@ -76,3 +76,25 @@ class TestStockTwitsCryptoSymbols:
         with patch.object(stocktwits, "urlopen", side_effect=fake_urlopen):
             stocktwits.fetch_stocktwits_messages("BTC-USD")
         assert "/symbol/BTC.X.json" in seen["url"]
+
+
+@pytest.mark.unit
+class TestStockTwitsUnicodeGuard:
+    def test_non_ascii_base_returns_placeholder_without_request(self):
+        """A non-ASCII base (e.g. 币安人生) cannot be encoded into an HTTP/1.1
+        request line, so the fetcher must degrade without calling the network.
+        """
+        seen = {}
+
+        def fake_urlopen(req, timeout=None):
+            seen["called"] = True
+            raise UnicodeEncodeError(
+                "ascii", req.full_url, 26, 30, "ordinal not in range(128)"
+            )
+
+        with patch.object(stocktwits, "urlopen", side_effect=fake_urlopen):
+            out = stocktwits.fetch_stocktwits_messages("币安人生-USDT")
+
+        assert not seen.get("called")
+        assert "unavailable" in out.lower()
+        assert "non-ascii" in out.lower()
