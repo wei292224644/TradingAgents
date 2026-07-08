@@ -26,9 +26,9 @@
 
 ## 5. Sentiment source mapping
 
-- [ ] 5.1 Update `stocktwits.py` `_stocktwits_symbol()` so meme-coin bases produce `BASE.X` cashtags.
-- [ ] 5.2 Update `reddit.py` to switch `DEFAULT_SUBREDDITS` to crypto subreddits when the ticker is a recognized crypto symbol.
-- [ ] 5.3 Verify `fetch_reddit_posts` extracts base correctly for dashed meme coins.
+- [x] 5.1 Update `stocktwits.py` `_stocktwits_symbol()` so meme-coin bases produce `BASE.X` cashtags.
+- [x] 5.2 Update `reddit.py` to switch `DEFAULT_SUBREDDITS` to crypto subreddits when the ticker is a recognized crypto symbol.
+- [x] 5.3 Verify `fetch_reddit_posts` extracts base correctly for dashed meme coins.
 
 ## 6. Crypto news fallback
 

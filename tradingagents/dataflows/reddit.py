@@ -48,6 +48,11 @@ _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 # investing trend more measured. Caller can override.
 DEFAULT_SUBREDDITS = ("wallstreetbets", "stocks", "investing")
 
+# Crypto assets get crypto-native communities instead: the equity subreddits
+# rarely mention anything beyond BTC/ETH, while meme coins live in
+# SatoshiStreetBets / CryptoMoonShots. Same ordering logic: volume first.
+CRYPTO_SUBREDDITS = ("CryptoCurrency", "SatoshiStreetBets", "CryptoMoonShots")
+
 
 def _search_qs(ticker: str, limit: int) -> str:
     return urlencode({
@@ -190,7 +195,7 @@ def _fetch_subreddit(
 
 def fetch_reddit_posts(
     ticker: str,
-    subreddits: Iterable[str] = DEFAULT_SUBREDDITS,
+    subreddits: Iterable[str] | None = None,
     limit_per_sub: int = 5,
     timeout: float = 10.0,
     inter_request_delay: float = 1.0,
@@ -198,13 +203,21 @@ def fetch_reddit_posts(
     """Fetch recent Reddit posts mentioning ``ticker`` across finance
     subreddits and return them as a formatted plaintext block.
 
+    ``subreddits=None`` picks the community set by asset: crypto pairs search
+    the crypto subreddits, everything else the equity ones. Pass an iterable
+    to override.
+
     ``inter_request_delay`` paces the (now RSS-only) per-subreddit requests to
     stay under Reddit's public per-IP rate limit; combined with the RSS-first
     path it makes 429s rare even when several analyses run back-to-back.
     """
-    # Crypto reaches us as a Yahoo pair (BTC-USD); search Reddit for the base
-    # ("BTC") so the query actually matches discussion instead of near-nothing.
-    ticker = crypto_base(ticker) or ticker
+    # Crypto reaches us as a pair (BTC-USD, SPCXB-USDT); search Reddit for the
+    # base ("BTC") so the query actually matches discussion instead of
+    # near-nothing — and search crypto communities rather than equity ones.
+    base = crypto_base(ticker)
+    if subreddits is None:
+        subreddits = CRYPTO_SUBREDDITS if base else DEFAULT_SUBREDDITS
+    ticker = base or ticker
     blocks = []
     total_posts = 0
     for i, sub in enumerate(subreddits):

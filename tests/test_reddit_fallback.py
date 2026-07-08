@@ -212,3 +212,43 @@ class TestCryptoSearchTerm:
 
     def test_equity_passes_through(self):
         assert self._captured_ticker("NVDA") == "NVDA"
+
+
+@pytest.mark.unit
+class TestCryptoSubredditSelection:
+    def _capture_fetches(self):
+        seen = []
+
+        def fake_fetch(ticker, sub, limit, timeout):
+            seen.append((ticker, sub))
+            return []
+
+        return seen, fake_fetch
+
+    def test_meme_coin_searches_crypto_subreddits_with_base(self):
+        seen, fake_fetch = self._capture_fetches()
+        with patch.object(reddit, "_fetch_subreddit", fake_fetch), \
+             patch.object(reddit.time, "sleep"):
+            reddit.fetch_reddit_posts("SPCXB-USDT")
+
+        tickers = {t for t, _ in seen}
+        subs = [s for _, s in seen]
+        assert tickers == {"SPCXB"}
+        assert subs == list(reddit.CRYPTO_SUBREDDITS)
+
+    def test_large_cap_crypto_also_uses_crypto_subreddits(self):
+        seen, fake_fetch = self._capture_fetches()
+        with patch.object(reddit, "_fetch_subreddit", fake_fetch), \
+             patch.object(reddit.time, "sleep"):
+            reddit.fetch_reddit_posts("BTC-USD")
+
+        assert [s for _, s in seen] == list(reddit.CRYPTO_SUBREDDITS)
+
+    def test_equity_keeps_default_subreddits(self):
+        seen, fake_fetch = self._capture_fetches()
+        with patch.object(reddit, "_fetch_subreddit", fake_fetch), \
+             patch.object(reddit.time, "sleep"):
+            reddit.fetch_reddit_posts("AAPL")
+
+        assert [s for _, s in seen] == list(reddit.DEFAULT_SUBREDDITS)
+        assert {t for t, _ in seen} == {"AAPL"}
