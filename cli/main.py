@@ -982,14 +982,15 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     config["anthropic_effort"] = selections.get("anthropic_effort")
     config["output_language"] = selections.get("output_language", "English")
     # Crypto assets price from OKX first (it lists meme coins Yahoo doesn't),
-    # with Yahoo as ordered fallback. Only applied when the vendor is still the
-    # shipped default — an explicit user/config override always wins.
+    # then Binance (it lists tokens OKX doesn't, e.g. Chinese-named meme
+    # coins), then Yahoo. Only applied when the vendor is still the shipped
+    # default — an explicit user/config override always wins.
     if (
         selections.get("asset_type") == "crypto"
         and config["data_vendors"].get("core_stock_apis") == "yfinance"
     ):
         config["data_vendors"] = dict(
-            config["data_vendors"], core_stock_apis="okx,yfinance"
+            config["data_vendors"], core_stock_apis="okx,binance,yfinance"
         )
     # Token-specific news for crypto comes from Google News RSS first (Yahoo
     # has no coverage for most tokens); tool-level so get_global_news keeps

@@ -125,13 +125,13 @@ def _assert_ohlcv_not_stale(
 def _ohlcv_vendor_chain() -> list[str]:
     """The configured core_stock_apis vendor chain that this loader honours.
 
-    Only vendors with a native OHLCV frame path here (okx, yfinance) are kept;
-    anything else — including the "default" sentinel — resolves to yfinance so
-    existing stock/forex behavior is unchanged.
+    Only vendors with a native OHLCV frame path here (okx, binance, yfinance)
+    are kept; anything else — including the "default" sentinel — resolves to
+    yfinance so existing stock/forex behavior is unchanged.
     """
     raw = (get_config().get("data_vendors") or {}).get("core_stock_apis", "default")
     chain = [v.strip() for v in str(raw).split(",") if v.strip()]
-    supported = [v for v in chain if v in ("okx", "yfinance")]
+    supported = [v for v in chain if v in ("okx", "binance", "yfinance")]
     return supported or ["yfinance"]
 
 
@@ -153,6 +153,10 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
                 from .okx import load_okx_ohlcv  # local import avoids cycle
 
                 return load_okx_ohlcv(symbol, curr_date)
+            if vendor == "binance":
+                from .binance import load_binance_ohlcv  # local import avoids cycle
+
+                return load_binance_ohlcv(symbol, curr_date)
             return _load_yfinance_ohlcv(symbol, curr_date)
         except NoMarketDataError as exc:
             last_no_data = exc

@@ -37,6 +37,14 @@
 - [x] 6.3 Add date-window filtering and graceful degradation for empty results or network failures.
 - [x] 6.4 Add unit tests for RSS parsing and date filtering.
 
+## 8. Binance spot vendor (post-probe addition: OKX lacks 币安人生-class tokens)
+
+- [x] 8.1 Create `tradingagents/dataflows/binance.py` with public klines client (`/api/v3/klines`), pagination, and rate-limit retry.
+- [x] 8.2 Support Unicode base symbols (e.g. `币安人生-USDT`) end-to-end: parsing, cache filename safety, Binance symbol resolution (`BASE` + `USDT`/`USDC`).
+- [x] 8.3 Register `binance` in `VENDOR_METHODS["get_stock_data"]`, `VENDOR_LIST`, and the `load_ohlcv` vendor branch.
+- [x] 8.4 Crypto CLI chain becomes `okx,binance,yfinance`.
+- [x] 8.5 Unit tests: klines parsing, pagination, Unicode symbol, vendor dispatch, CLI chain.
+
 ## 7. Integration and regression
 
 - [ ] 7.1 Run a full analysis for `SPCXB-USDT` and confirm market/sentiment/news reports contain real or explicitly unavailable data.

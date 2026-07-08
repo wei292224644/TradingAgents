@@ -17,6 +17,7 @@ from .errors import (
     VendorNotConfiguredError,
     VendorRateLimitError,
 )
+from .binance import get_binance_stock_data
 from .fred import get_macro_data as get_fred_macro_data
 from .news_rss import get_news_google_rss
 from .okx import get_okx_stock_data
@@ -85,6 +86,7 @@ VENDOR_LIST = [
     "polymarket",
     "alpha_vantage",
     "okx",
+    "binance",
     "google_rss",
 ]
 
@@ -102,6 +104,7 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
         "okx": get_okx_stock_data,
+        "binance": get_binance_stock_data,
     },
     # technical_indicators
     "get_indicators": {

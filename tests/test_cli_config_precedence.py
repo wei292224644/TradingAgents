@@ -72,7 +72,7 @@ def test_checkpoint_flag_overrides_env(flag):
 def test_crypto_asset_selects_okx_vendor_chain():
     selections = dict(SELECTIONS, asset_type="crypto")
     cfg = m._build_run_config(selections, checkpoint=None)
-    assert cfg["data_vendors"]["core_stock_apis"] == "okx,yfinance"
+    assert cfg["data_vendors"]["core_stock_apis"] == "okx,binance,yfinance"
     # Never mutate the shared default config in place.
     assert m.DEFAULT_CONFIG["data_vendors"]["core_stock_apis"] == "yfinance"
 

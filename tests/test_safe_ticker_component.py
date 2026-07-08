@@ -19,6 +19,12 @@ class TestSafeTickerComponent(unittest.TestCase):
         for ticker in ("GC=F", "CL=F", "ES=F", "XAUUSD+", "EURUSD+"):
             self.assertEqual(safe_ticker_component(ticker), ticker)
 
+    def test_accepts_unicode_token_names(self):
+        # Binance lists Chinese-named meme coins (币安人生USDT); their canonical
+        # pipeline form must survive the cache-filename safety check.
+        for ticker in ("币安人生-USD", "币安人生-USDT"):
+            self.assertEqual(safe_ticker_component(ticker), ticker)
+
     def test_rejects_path_separators(self):
         for bad in (".", "..", "../etc", "a/b", "a\\b", "/abs", "..\\..\\x"):
             with self.assertRaises(ValueError):
