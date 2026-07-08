@@ -42,6 +42,9 @@ _FOREX_CURRENCIES = frozenset(
 )
 
 # Crypto bases that brokers quote against USD without a separator.
+# This whitelist is used ONLY for compact (no-dash) symbols such as BTCUSD.
+# Any BASE-QUOTE symbol with a dash separator is treated as crypto regardless
+# of whether the base appears in this list, so arbitrary meme coins work.
 _CRYPTO_BASES = frozenset(
     {"BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "LTC", "BCH", "DOT", "AVAX", "LINK"}
 )
@@ -81,13 +84,30 @@ _CRYPTO_QUOTES = ("USDT", "USDC", "USD")
 
 
 def crypto_base(raw: str) -> str | None:
-    """Return the crypto base (e.g. ``BTC``) for a known USD/USDT/USDC-quoted
-    crypto symbol in any form the pipeline may hold — ``BTC-USD``, ``BTCUSD``,
-    ``BTC-USDT`` — or None for non-crypto symbols. Purely syntactic.
+    """Return the crypto base (e.g. ``BTC``) for a USD/USDT/USDC-quoted crypto
+    symbol, or None for non-crypto symbols.
+
+    Resolution rules:
+      1. Dashed form ``BASE-QUOTE`` (e.g. ``SPCXB-USDT``, ``PEPE-USD``) is
+         accepted for ANY base; the dash separator unambiguously marks this as
+         a crypto pair.
+      2. Compact form ``BASEQUOTE`` (e.g. ``BTCUSD``) keeps the existing
+         whitelist so ``EURUSD`` is not mistaken for a crypto token.
     """
     if not isinstance(raw, str):
         return None
-    compact = raw.strip().upper().rstrip("+").replace("-", "")
+
+    s = raw.strip().upper().rstrip("+")
+
+    # Rule 1: dashed crypto pair — accept any base.
+    if "-" in s:
+        base, _, quote = s.partition("-")
+        if base and quote in _CRYPTO_QUOTES:
+            return base
+        return None
+
+    # Rule 2: compact form — only known bases to avoid forex collision.
+    compact = s.replace("-", "")
     for quote in _CRYPTO_QUOTES:
         if compact.endswith(quote):
             base = compact[: -len(quote)]
@@ -106,8 +126,10 @@ def normalize_symbol(raw: str) -> str:
 
     Resolution order (first match wins):
       1. Explicit alias table (metals, energy, index CFDs).
-      2. Crypto rule: a known crypto base quoted in USD/USDT/USDC (dashed or
-         not) -> ``BASE-USD``.
+      2. Crypto rule: a USD/USDT/USDC-quoted crypto pair. Dashed pairs
+         (``SPCXB-USDT``, ``PEPE-USD``) accept any base; compact pairs
+         (``BTCUSD``) keep the known-base whitelist so six-letter forex
+         symbols are not misclassified.
       3. Forex rule: six letters that are two ISO currency codes -> ``PAIR=X``.
       4. Otherwise the upper-cased symbol is returned unchanged (plain
          equities, ETFs, Yahoo-native symbols like ``GC=F`` or ``^GSPC``).

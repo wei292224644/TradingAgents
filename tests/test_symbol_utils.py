@@ -40,9 +40,25 @@ class TestNormalizeSymbol(unittest.TestCase):
         self.assertEqual(normalize_symbol("GBPJPY"), "GBPJPY=X")
         self.assertEqual(normalize_symbol("eurusd"), "EURUSD=X")
 
-    def test_crypto_pairs_get_dash_usd(self):
+    def test_dashed_meme_coin_returns_usd(self):
+        self.assertEqual(normalize_symbol("SPCXB-USDT"), "SPCXB-USD")
+        self.assertEqual(normalize_symbol("PEPE-USD"), "PEPE-USD")
+        self.assertEqual(normalize_symbol("shib-usdc"), "SHIB-USD")
+
+    def test_dashed_large_cap_still_normalizes(self):
+        self.assertEqual(normalize_symbol("BTC-USD"), "BTC-USD")
+        self.assertEqual(normalize_symbol("ETH-USDT"), "ETH-USD")
+
+    def test_compact_whitelisted_crypto_normalizes(self):
         self.assertEqual(normalize_symbol("BTCUSD"), "BTC-USD")
-        self.assertEqual(normalize_symbol("ETHUSD"), "ETH-USD")
+        self.assertEqual(normalize_symbol("SOLUSDT"), "SOL-USD")
+
+    def test_compact_non_whitelisted_crypto_left_alone(self):
+        # Without a dash we cannot distinguish PEPEUSD from EURUSD forex.
+        self.assertEqual(normalize_symbol("PEPEUSD"), "PEPEUSD")
+
+    def test_forex_not_mistaken_for_crypto(self):
+        self.assertEqual(normalize_symbol("EURUSD"), "EURUSD=X")
 
     def test_six_letter_non_currency_left_alone(self):
         # GOOGLE-style 6-letter tickers that aren't two currency codes
@@ -86,10 +102,17 @@ class TestCryptoBase(unittest.TestCase):
         self.assertEqual(crypto_base("ETH-USD"), "ETH")
         self.assertEqual(crypto_base("sol-usd"), "SOL")
 
+    def test_resolves_dashed_meme_coin_base(self):
+        self.assertEqual(crypto_base("SPCXB-USDT"), "SPCXB")
+        self.assertEqual(crypto_base("PEPE-USD"), "PEPE")
+        self.assertEqual(crypto_base("shib-usdc"), "SHIB")
+
     def test_non_crypto_returns_none(self):
         # Plain equities, class shares, and real tickers that alias elsewhere
         # (GOLD -> gold future on the Yahoo path) must NOT read as crypto.
-        for raw in ("AAPL", "BRK-B", "GOLD", "XYZ-USD", "EURUSD", "", None):
+        # BRK-B is dashed but its quote ("B") is not a crypto quote currency.
+        # Note: XYZ-USD (dashed, crypto quote) IS crypto under the dash rule.
+        for raw in ("AAPL", "BRK-B", "GOLD", "EURUSD", "PEPEUSD", "", None):
             self.assertIsNone(crypto_base(raw))
 
     def test_agrees_with_normalize_symbol(self):
