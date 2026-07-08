@@ -122,13 +122,46 @@ def _assert_ohlcv_not_stale(
         )
 
 
+def _ohlcv_vendor_chain() -> list[str]:
+    """The configured core_stock_apis vendor chain that this loader honours.
+
+    Only vendors with a native OHLCV frame path here (okx, yfinance) are kept;
+    anything else — including the "default" sentinel — resolves to yfinance so
+    existing stock/forex behavior is unchanged.
+    """
+    raw = (get_config().get("data_vendors") or {}).get("core_stock_apis", "default")
+    chain = [v.strip() for v in str(raw).split(",") if v.strip()]
+    supported = [v for v in chain if v in ("okx", "yfinance")]
+    return supported or ["yfinance"]
+
+
 def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     """Fetch OHLCV data with caching, filtered to prevent look-ahead bias.
 
     Downloads 5 years of data up to today and caches per symbol. On
     subsequent calls the cache is reused. Rows after curr_date are
     filtered out so backtests never see future prices.
+
+    Honours the configured ``core_stock_apis`` vendor chain: with OKX first
+    (the crypto default), candles come from OKX and Yahoo is only a fallback,
+    so indicators and verified snapshots work for OKX-listed meme coins.
     """
+    last_no_data: NoMarketDataError | None = None
+    for vendor in _ohlcv_vendor_chain():
+        try:
+            if vendor == "okx":
+                from .okx import load_okx_ohlcv  # local import avoids cycle
+
+                return load_okx_ohlcv(symbol, curr_date)
+            return _load_yfinance_ohlcv(symbol, curr_date)
+        except NoMarketDataError as exc:
+            last_no_data = exc
+            logger.info("Vendor %r has no OHLCV for %r; trying next", vendor, symbol)
+    raise last_no_data
+
+
+def _load_yfinance_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
+    """Original Yahoo Finance OHLCV path (cache + look-ahead filter)."""
     # Resolve broker/forex symbols (XAUUSD+ -> GC=F) to Yahoo's convention,
     # then reject values that would escape the cache directory when
     # interpolated into the cache filename (e.g. ``../../tmp/x``).

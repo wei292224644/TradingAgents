@@ -173,3 +173,62 @@ class TestOkxInstrumentFallback:
             out = okx.get_okx_stock_data("SPCXB-USDT", "2026-07-01", "2026-07-08")
 
         assert "SPCXB-USDC" in out  # header names the instrument actually used
+
+
+@pytest.mark.unit
+class TestOkxVendorRegistration:
+    def test_okx_registered_for_get_stock_data(self):
+        from tradingagents.dataflows import interface
+
+        assert "okx" in interface.VENDOR_METHODS["get_stock_data"]
+        assert "okx" in interface.VENDOR_LIST
+
+    def test_route_to_vendor_dispatches_to_okx(self):
+        from tradingagents.dataflows import interface
+        from tradingagents.dataflows.config import set_config
+
+        set_config({"data_vendors": {"core_stock_apis": "okx"}})
+        candles = [_candle(_day_ms("2026-07-07"), c=1.25)]
+        with patch.object(okx, "urlopen", _one_page_then_empty(candles)):
+            out = interface.route_to_vendor(
+                "get_stock_data", "SPCXB-USDT", "2026-07-01", "2026-07-08"
+            )
+
+        assert "OKX" in out
+        assert "1.25" in out
+
+
+@pytest.mark.unit
+class TestLoadOhlcvVendorAware:
+    def test_load_ohlcv_uses_okx_when_configured(self):
+        from tradingagents.dataflows.config import set_config
+        from tradingagents.dataflows.stockstats_utils import load_ohlcv
+
+        set_config({"data_vendors": {"core_stock_apis": "okx,yfinance"}})
+        candles = [
+            _candle(_day_ms("2026-07-07"), c=1.25),
+            _candle(_day_ms("2026-07-06"), c=1.10),
+        ]
+        with patch.object(okx, "urlopen", _one_page_then_empty(candles)):
+            df = load_ohlcv("SPCXB-USD", "2026-07-08")
+
+        assert len(df) == 2
+        assert float(df.iloc[-1]["Close"]) == 1.25
+
+    def test_verified_snapshot_reads_okx_data(self):
+        from tradingagents.dataflows.config import set_config
+        from tradingagents.dataflows.market_data_validator import (
+            build_verified_market_snapshot,
+        )
+
+        set_config({"data_vendors": {"core_stock_apis": "okx,yfinance"}})
+        candles = [
+            _candle(_day_ms("2026-07-07") - i * 86_400_000, c=1.0 + i * 0.01)
+            for i in range(30)
+        ]
+        with patch.object(okx, "urlopen", _one_page_then_empty(candles)):
+            snapshot = build_verified_market_snapshot("SPCXB-USD", "2026-07-08")
+
+        assert "SPCXB-USD" in snapshot
+        assert "2026-07-07" in snapshot  # latest verified row
+        assert "rsi" in snapshot

@@ -14,10 +14,10 @@
 
 ## 3. Vendor routing integration
 
-- [ ] 3.1 Register `okx` in `VENDOR_METHODS["get_stock_data"]` in `tradingagents/dataflows/interface.py`.
-- [ ] 3.2 Make `load_ohlcv` in `tradingagents/dataflows/stockstats_utils.py` branch by configured vendor (`okx` vs `yfinance`).
-- [ ] 3.3 Add `okx` to `VENDOR_LIST` in `tradingagents/dataflows/interface.py`.
-- [ ] 3.4 Verify `get_indicators` and `build_verified_market_snapshot` work through OKX path for `SPCXB-USDT`.
+- [x] 3.1 Register `okx` in `VENDOR_METHODS["get_stock_data"]` in `tradingagents/dataflows/interface.py`.
+- [x] 3.2 Make `load_ohlcv` in `tradingagents/dataflows/stockstats_utils.py` branch by configured vendor (`okx` vs `yfinance`).
+- [x] 3.3 Add `okx` to `VENDOR_LIST` in `tradingagents/dataflows/interface.py`.
+- [x] 3.4 Verify `get_indicators` and `build_verified_market_snapshot` work through OKX path for `SPCXB-USDT`.
 
 ## 4. CLI vendor-chain selection
 
