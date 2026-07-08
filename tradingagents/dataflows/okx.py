@@ -221,12 +221,10 @@ def get_okx_stock_data(
             symbol, canonical, f"no rows between {start_date} and {end_date}"
         )
 
-    for col in ("Open", "High", "Low", "Close"):
-        # Keep meme-coin sub-cent prices meaningful: round to 6 significant-ish
-        # decimals instead of the Yahoo path's 2 (a $0.0042 token would print 0.00).
-        frame[col] = frame[col].round(6)
-
-    csv_string = frame.to_csv(index=False)
+    # No decimal rounding: micro-price tokens (PEPE trades near $0.000003)
+    # collapse to identical OHLC values under any fixed decimal count. %.12g
+    # keeps 12 significant digits for prices of any magnitude instead.
+    csv_string = frame.to_csv(index=False, float_format="%.12g")
 
     label = canonical if canonical == symbol.upper() else f"{canonical} (from {symbol})"
     header = f"# Stock data for {label} from {start_date} to {end_date}\n"

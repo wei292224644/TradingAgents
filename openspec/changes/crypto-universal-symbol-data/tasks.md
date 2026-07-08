@@ -42,4 +42,4 @@
 - [ ] 7.1 Run a full analysis for `SPCXB-USDT` and confirm market/sentiment/news reports contain real or explicitly unavailable data.
 - [ ] 7.2 Run a full analysis for `BTC-USD` and confirm behavior is consistent with pre-change baseline.
 - [ ] 7.3 Run a full analysis for `AAPL` and `EURUSD` to verify stock/forex paths are unchanged.
-- [ ] 7.4 Run the test suite and fix regressions.
+- [x] 7.4 Run the test suite and fix regressions.

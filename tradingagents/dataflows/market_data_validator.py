@@ -55,7 +55,9 @@ def _fmt(value) -> str:
     if isinstance(value, (int,)):
         return str(value)
     if isinstance(value, float):
-        return f"{value:.2f}"
+        # Fixed 2-decimal formatting flattens micro-price crypto (PEPE trades
+        # near $0.000003) to "0.00"; fall back to significant digits below 0.1.
+        return f"{value:.2f}" if abs(value) >= 0.1 else f"{value:.6g}"
     return str(value)
 
 

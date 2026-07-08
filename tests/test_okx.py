@@ -232,3 +232,25 @@ class TestLoadOhlcvVendorAware:
         assert "SPCXB-USD" in snapshot
         assert "2026-07-07" in snapshot  # latest verified row
         assert "rsi" in snapshot
+
+    def test_verified_snapshot_preserves_micro_prices(self):
+        from tradingagents.dataflows.config import set_config
+        from tradingagents.dataflows.market_data_validator import (
+            build_verified_market_snapshot,
+        )
+
+        set_config({"data_vendors": {"core_stock_apis": "okx,yfinance"}})
+        # PEPE-scale prices: ~0.0000027. A fixed 2-decimal format would
+        # render every price as 0.00 and poison the "source of truth".
+        candles = [
+            _candle(
+                _day_ms("2026-07-07") - i * 86_400_000,
+                o=2.7e-06, h=2.8e-06, l=2.6e-06, c=2.7e-06 + i * 1e-08,
+            )
+            for i in range(30)
+        ]
+        with patch.object(okx, "urlopen", _one_page_then_empty(candles)):
+            snapshot = build_verified_market_snapshot("PEPE-USD", "2026-07-08")
+
+        assert "| Close | 0.00 |" not in snapshot
+        assert "2.7e-06" in snapshot
