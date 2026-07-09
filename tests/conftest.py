@@ -38,6 +38,20 @@ def _dummy_api_keys(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_apify_calls(monkeypatch):
+    """Strip a real APIFY_API_TOKEN so tests never trigger a billed Apify run.
+
+    Apify's StockTwits-scraper fallback is pay-per-event (unlike the free
+    vendors above), so a developer's real token sitting in `.env` must never
+    leak into the test suite — sentiment-analyst tests exercise the real
+    StockTwits 403 path already, and any code path that falls back to Apify
+    would otherwise fire (and bill) on every test run. Tests that need the
+    fallback behavior set this back explicitly via monkeypatch.
+    """
+    monkeypatch.delenv("APIFY_API_TOKEN", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_config():
     """Reset the global dataflows config before and after each test.
 

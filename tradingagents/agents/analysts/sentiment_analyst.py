@@ -39,12 +39,25 @@ from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
 )
+from tradingagents.dataflows.apify_stocktwits import fetch_apify_stocktwits_messages
 from tradingagents.dataflows.reddit import fetch_reddit_posts
 from tradingagents.dataflows.stocktwits import fetch_stocktwits_messages
 
 
 def _seven_days_back(trade_date: str) -> str:
     return (datetime.strptime(trade_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+
+
+def _fetch_stocktwits_block(ticker: str) -> str:
+    """StockTwits data, falling back to the Apify scraper if the direct path
+    is unavailable (Cloudflare currently blocks the public API for every
+    symbol). The Apify fallback is pay-per-event, so it's only reached after
+    the free direct path has already failed.
+    """
+    block = fetch_stocktwits_messages(ticker, limit=30)
+    if block.startswith("<stocktwits unavailable"):
+        return fetch_apify_stocktwits_messages(ticker, limit=30)
+    return block
 
 
 def create_sentiment_analyst(llm):
@@ -67,7 +80,7 @@ def create_sentiment_analyst(llm):
         # returns a string (no exceptions surface from here), so the LLM
         # always sees something — either real data or a clear placeholder.
         news_block = get_news.func(ticker, start_date, end_date)
-        stocktwits_block = fetch_stocktwits_messages(ticker, limit=30)
+        stocktwits_block = _fetch_stocktwits_block(ticker)
         reddit_block = fetch_reddit_posts(ticker)
 
         system_message = _build_system_message(
@@ -169,7 +182,9 @@ Community discussion. Engagement signal via upvote score and comment count. Subr
 
 7. **Identify catalysts and risks** that emerge across sources — news of upcoming earnings, product launches, competitive threats, macro headlines, etc.
 
-8. **Past sentiment is not predictive.** Frame your conclusions as signal for the trader to weigh alongside fundamentals and technicals, not as a price call.
+8. **Fact-check verifiable claims before weighting them as catalysts.** If a news item asserts something checkable against basic public knowledge (e.g. "company X joins index Y", a stock listing, a regulatory approval), sanity-check it before treating it as a reliable bullish/bearish signal — a company that has never IPO'd cannot join an index of listed companies. Crypto-platform-sourced press (Bitget, Binance, and similar promotional blogs) is especially prone to this; flag implausible or unverifiable claims explicitly rather than presenting them as confirmed events.
+
+9. **Past sentiment is not predictive.** Frame your conclusions as signal for the trader to weigh alongside fundamentals and technicals, not as a price call.
 
 ## Output fields
 

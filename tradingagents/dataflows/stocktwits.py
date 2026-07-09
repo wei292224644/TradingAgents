@@ -69,18 +69,40 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
     if not messages:
         return f"<no StockTwits messages found for ${ticker.upper()}>"
 
+    normalized = [
+        {
+            "created": m.get("created_at", ""),
+            "user": (m.get("user") or {}).get("username", "?"),
+            "sentiment": (
+                ((m.get("entities") or {}).get("sentiment") or {}).get("basic")
+                if isinstance((m.get("entities") or {}).get("sentiment"), dict)
+                else None
+            ),
+            "body": m.get("body") or "",
+        }
+        for m in messages[:limit]
+    ]
+    return render_stocktwits_messages(normalized)
+
+
+def render_stocktwits_messages(messages: list[dict]) -> str:
+    """Render normalized StockTwits-shaped messages to the standard text block.
+
+    ``messages`` items carry ``created``, ``user``, ``sentiment``
+    (``"Bullish"``/``"Bearish"``/``None``), and ``body``. Shared by the direct
+    API path above and the Apify-scraper fallback (:mod:`apify_stocktwits`) so
+    both produce output identical enough that the sentiment-analyst prompt's
+    "read the StockTwits Bullish/Bearish ratio" guidance applies regardless of
+    which one actually served the data.
+    """
     lines = []
     bullish = bearish = unlabeled = 0
-    for m in messages[:limit]:
-        created = m.get("created_at", "")
-        user = (m.get("user") or {}).get("username", "?")
-        entities = m.get("entities") or {}
-        sentiment_obj = entities.get("sentiment") or {}
-        sentiment = sentiment_obj.get("basic") if isinstance(sentiment_obj, dict) else None
+    for m in messages:
         body = (m.get("body") or "").replace("\n", " ").strip()
         if len(body) > 280:
             body = body[:280] + "…"
 
+        sentiment = m.get("sentiment")
         if sentiment == "Bullish":
             bullish += 1
             tag = "Bullish"
@@ -90,7 +112,7 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
         else:
             unlabeled += 1
             tag = "no-label"
-        lines.append(f"[{created} · @{user} · {tag}] {body}")
+        lines.append(f"[{m.get('created', '')} · @{m.get('user', '?')} · {tag}] {body}")
 
     total = bullish + bearish + unlabeled
     bull_pct = round(100 * bullish / total) if total else 0
