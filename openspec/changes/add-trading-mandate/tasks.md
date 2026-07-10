@@ -2,7 +2,7 @@
 
 - [x] 1.1 Add `trading_mandate` field to `AgentState` in `tradingagents/agents/utils/agent_states.py`.
 - [x] 1.2 Add optional `trading_mandate: str = ""` parameter to `Propagator.create_initial_state()` (`tradingagents/graph/propagation.py`) and include it in the returned state.
-- [ ] 1.3 Add optional `trading_mandate: str = ""` parameter to `TradingAgentsGraph.propagate()` and `_run_graph()` (`tradingagents/graph/trading_graph.py`), passing it into `create_initial_state()`.
+- [x] 1.3 Add optional `trading_mandate: str = ""` parameter to `TradingAgentsGraph.propagate()` and `_run_graph()` (`tradingagents/graph/trading_graph.py`), passing it into `create_initial_state()`.
 - [ ] 1.4 Include mandate (`strip()`-normalized, hashed) in `_run_signature()` so a changed mandate invalidates a resumable checkpoint; unchanged signature when mandate is empty.
 
 ## 2. Mandate helper
