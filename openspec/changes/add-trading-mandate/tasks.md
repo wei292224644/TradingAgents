@@ -13,7 +13,7 @@
 
 ## 3. Prompt injection (12 agent sites)
 
-- [ ] 3.1 Analysts: `market_analyst.py`, `fundamentals_analyst.py`, `news_analyst.py`, `sentiment_analyst.py` — inject mandate block next to `instrument_context`.
+- [x] 3.1 Analysts: `market_analyst.py`, `fundamentals_analyst.py`, `news_analyst.py`, `sentiment_analyst.py` — inject mandate block next to `instrument_context`.
 - [ ] 3.2 Researchers: `bull_researcher.py`, `bear_researcher.py` — inject block; bear gets conditional reframing sentence (argue entry timing under mandate, not against mandate).
 - [ ] 3.3 Trader: `trader.py` — inject block into user message.
 - [ ] 3.4 Risk debators: `aggressive_debator.py`, `conservative_debator.py`, `neutral_debator.py` — inject block; conservative gets the same conditional reframing as bear.

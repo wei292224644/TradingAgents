@@ -168,5 +168,41 @@ class TestGetMandateFromState(unittest.TestCase):
         self.assertIn("User mandate (binding constraints for recommendations)", placeholder.content)
 
 
+class TestAnalystMandateInjection(unittest.TestCase):
+    def test_market_analyst_prompt_includes_mandate(self):
+        from unittest.mock import MagicMock
+
+        from langchain_core.runnables import RunnableLambda
+
+        from tradingagents.agents.analysts.market_analyst import create_market_analyst
+
+        mandate = "Spot long-only; no derivatives"
+        captured = {}
+
+        def capture(messages):
+            captured["messages"] = messages
+            result = MagicMock()
+            result.tool_calls = []
+            result.content = "report"
+            return result
+
+        llm = MagicMock()
+        llm.bind_tools.return_value = RunnableLambda(capture)
+        node = create_market_analyst(llm)
+        node(
+            {
+                "messages": [],
+                "trade_date": "2026-07-10",
+                "company_of_interest": "BTC-USD",
+                "asset_type": "crypto",
+                "instrument_context": "The instrument to analyze is `BTC-USD`.",
+                "trading_mandate": mandate,
+            }
+        )
+        system_text = captured["messages"].to_messages()[0].content
+        self.assertIn(mandate, system_text)
+        self.assertIn("User mandate (binding constraints for recommendations)", system_text)
+
+
 if __name__ == "__main__":
     unittest.main()
