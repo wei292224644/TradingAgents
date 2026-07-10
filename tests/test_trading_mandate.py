@@ -130,5 +130,24 @@ class TestRunSignatureIncludesMandate(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+class TestGetMandateFromState(unittest.TestCase):
+    def test_empty_state_returns_empty_string(self):
+        from tradingagents.agents.utils.agent_utils import get_mandate_from_state
+
+        self.assertEqual(get_mandate_from_state({}), "")
+        self.assertEqual(get_mandate_from_state({"trading_mandate": ""}), "")
+        self.assertEqual(get_mandate_from_state({"trading_mandate": "   "}), "")
+
+    def test_formatted_block_contains_mandate_and_constraint(self):
+        from tradingagents.agents.utils.agent_utils import get_mandate_from_state
+
+        mandate = "Spot long-only; no derivatives"
+        block = get_mandate_from_state({"trading_mandate": mandate})
+        self.assertIn(mandate, block)
+        self.assertIn("User mandate (binding constraints for recommendations)", block)
+        self.assertIn("constrains recommendations, not evidence", block)
+        self.assertTrue(block.startswith("\n\n"))
+
+
 if __name__ == "__main__":
     unittest.main()

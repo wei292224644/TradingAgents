@@ -42,6 +42,7 @@ __all__ = [
     "build_instrument_context",
     "resolve_instrument_identity",
     "get_instrument_context_from_state",
+    "get_mandate_from_state",
     "get_language_instruction",
     "create_msg_delete",
 ]
@@ -184,6 +185,27 @@ def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
     return build_instrument_context(
         str(state["company_of_interest"]),
         state.get("asset_type", "stock"),
+    )
+
+
+def get_mandate_from_state(state: Mapping[str, Any]) -> str:
+    """Return a formatted trading-mandate block, or empty string when unset.
+
+    When non-empty, the block binds recommendations (direction, instruments,
+    strategies) while still requiring honest reporting of adverse evidence.
+    Agents inject the return value unconditionally; an empty mandate leaves
+    prompts byte-identical to pre-mandate behavior.
+    """
+    mandate = state.get("trading_mandate")
+    if not isinstance(mandate, str) or not mandate.strip():
+        return ""
+    text = mandate.strip()
+    return (
+        f"\n\n**User mandate (binding constraints for recommendations):** {text}\n"
+        "All recommendations must stay within this mandate. Do not propose "
+        "instruments, directions, or strategies it excludes. The mandate "
+        "constrains recommendations, not evidence — still report adverse "
+        "findings honestly.\n"
     )
 
 

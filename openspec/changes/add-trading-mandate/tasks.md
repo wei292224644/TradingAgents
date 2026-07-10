@@ -7,7 +7,7 @@
 
 ## 2. Mandate helper
 
-- [ ] 2.1 Add `get_mandate_from_state(state)` to `tradingagents/agents/utils/agent_utils.py`: empty string when unset; otherwise formatted block with the constraint text (binds recommendations, not evidence). Export in `__all__`.
+- [x] 2.1 Add `get_mandate_from_state(state)` to `tradingagents/agents/utils/agent_utils.py`: empty string when unset; otherwise formatted block with the constraint text (binds recommendations, not evidence). Export in `__all__`.
 - [ ] 2.2 Append the mandate block to the `create_msg_delete` placeholder message.
 - [ ] 2.3 Unit tests: empty-state no-op, formatted block content, placeholder inclusion.
 
