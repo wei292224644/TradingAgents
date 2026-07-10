@@ -12,6 +12,7 @@ class TradingMemoryLog:
     # HTML comment: cannot appear in LLM prose output, safe as a hard delimiter
     _SEPARATOR = "\n\n<!-- ENTRY_END -->\n\n"
     # Precompiled patterns — avoids re-compilation on every load_entries() call
+    _MANDATE_RE = re.compile(r"MANDATE:\n(.*?)(?=\nDECISION:|\Z)", re.DOTALL)
     _DECISION_RE = re.compile(r"DECISION:\n(.*?)(?=\nREFLECTION:|\Z)", re.DOTALL)
     _REFLECTION_RE = re.compile(r"REFLECTION:\n(.*?)$", re.DOTALL)
 
@@ -32,6 +33,7 @@ class TradingMemoryLog:
         ticker: str,
         trade_date: str,
         final_trade_decision: str,
+        trading_mandate: str = "",
     ) -> None:
         """Append pending entry at end of propagate(). No LLM call."""
         if not self._log_path:
@@ -44,7 +46,12 @@ class TradingMemoryLog:
                     return
         rating = parse_rating(final_trade_decision)
         tag = f"[{trade_date} | {ticker} | {rating} | pending]"
-        entry = f"{tag}\n\nDECISION:\n{final_trade_decision}{self._SEPARATOR}"
+        mandate_section = ""
+        if isinstance(trading_mandate, str) and trading_mandate.strip():
+            mandate_section = f"MANDATE:\n{trading_mandate.strip()}\n\n"
+        entry = (
+            f"{tag}\n\n{mandate_section}DECISION:\n{final_trade_decision}{self._SEPARATOR}"
+        )
         with open(self._log_path, "a", encoding="utf-8") as f:
             f.write(entry)
 
@@ -274,8 +281,12 @@ class TradingMemoryLog:
             "holding": fields[5] if len(fields) > 5 else None,
         }
         body = "\n".join(lines[1:]).strip()
+        mandate_match = self._MANDATE_RE.search(body)
         decision_match = self._DECISION_RE.search(body)
         reflection_match = self._REFLECTION_RE.search(body)
+        entry["trading_mandate"] = (
+            mandate_match.group(1).strip() if mandate_match else ""
+        )
         entry["decision"] = decision_match.group(1).strip() if decision_match else ""
         entry["reflection"] = reflection_match.group(1).strip() if reflection_match else ""
         return entry
@@ -285,15 +296,21 @@ class TradingMemoryLog:
         alpha = e["alpha"] or "n/a"
         holding = e["holding"] or "n/a"
         tag = f"[{e['date']} | {e['ticker']} | {e['rating']} | {raw} | {alpha} | {holding}]"
-        parts = [tag, f"DECISION:\n{e['decision']}"]
+        parts = [tag]
+        mandate = e.get("trading_mandate") or ""
+        if mandate:
+            parts.append(f"[mandate: {mandate}]")
+        parts.append(f"DECISION:\n{e['decision']}")
         if e["reflection"]:
             parts.append(f"REFLECTION:\n{e['reflection']}")
         return "\n\n".join(parts)
 
     def _format_reflection_only(self, e: dict) -> str:
         tag = f"[{e['date']} | {e['ticker']} | {e['rating']} | {e['raw'] or 'n/a'}]"
+        mandate = e.get("trading_mandate") or ""
+        mandate_line = f"\n[mandate: {mandate}]" if mandate else ""
         if e["reflection"]:
-            return f"{tag}\n{e['reflection']}"
+            return f"{tag}{mandate_line}\n{e['reflection']}"
         text = e["decision"][:300]
         suffix = "..." if len(e["decision"]) > 300 else ""
-        return f"{tag}\n{text}{suffix}"
+        return f"{tag}{mandate_line}\n{text}{suffix}"

@@ -34,6 +34,7 @@ class Reflector:
         raw_return: float,
         alpha_return: float,
         benchmark_name: str = "SPY",
+        trading_mandate: str = "",
     ) -> str:
         """Single reflection call on the final trade decision with outcome context.
 
@@ -42,7 +43,20 @@ class Reflector:
         ``benchmark_name`` is the label used for the alpha line (e.g. ``"SPY"``
         for US tickers, ``"^N225"`` for ``.T`` listings); defaults to SPY for
         callers that haven't been updated to thread the benchmark through.
+
+        ``trading_mandate`` is the optional mandate the decision was made under;
+        when set, the reflection prompt states that so lessons stay inside the
+        mandate (e.g. stay-out Sell ≠ should-have-shorted).
         """
+        mandate_line = ""
+        if isinstance(trading_mandate, str) and trading_mandate.strip():
+            mandate_line = (
+                f"This decision was made under the following trading mandate:\n"
+                f"{trading_mandate.strip()}\n"
+                f"Evaluate the outcome within that mandate — do not suggest "
+                f"lessons that contradict it (e.g. recommending a short after a "
+                f"mandate-scoped stay-out Sell).\n\n"
+            )
         messages = [
             ("system", self.log_reflection_prompt),
             (
@@ -50,6 +64,7 @@ class Reflector:
                 (
                     f"Raw return: {raw_return:+.1%}\n"
                     f"Alpha vs {benchmark_name}: {alpha_return:+.1%}\n\n"
+                    f"{mandate_line}"
                     f"Final Decision:\n{final_decision}"
                 ),
             ),

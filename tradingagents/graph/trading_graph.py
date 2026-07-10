@@ -321,6 +321,7 @@ class TradingAgentsGraph:
                 raw_return=raw,
                 alpha_return=alpha,
                 benchmark_name=benchmark,
+                trading_mandate=entry.get("trading_mandate", ""),
             )
             updates.append({
                 "ticker": ticker,
@@ -489,6 +490,7 @@ class TradingAgentsGraph:
             ticker=company_name,
             trade_date=trade_date,
             final_trade_decision=final_state["final_trade_decision"],
+            trading_mandate=trading_mandate,
         )
 
         # Clear checkpoint on successful completion to avoid stale state.

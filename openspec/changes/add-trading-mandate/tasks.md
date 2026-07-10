@@ -22,11 +22,11 @@
 
 ## 4. Memory log
 
-- [ ] 4.1 Extend `TradingMemoryLog.store_decision()` (`tradingagents/agents/utils/memory.py`) with optional `trading_mandate`; persist verbatim as a `MANDATE:` section placed BEFORE `DECISION:` (placing it after would be swallowed by `_DECISION_RE` at `memory.py:15`, which captures everything up to `REFLECTION:`/end). Add a `_MANDATE_RE` and parse it in `_parse_entry()`; absent section ⇒ no mandate (legacy).
-- [ ] 4.2 Render mandate in `get_past_context()` entries via `_format_full()` and `_format_reflection_only()` (e.g. `[mandate: ...]` line); legacy entries without mandate render unchanged. Idempotency scan (`memory.py:43`) and `update_with_outcome()` tag rewrite are tag-based and unaffected.
-- [ ] 4.3 Pass mandate at the `store_decision()` call site in `_run_graph()` (`trading_graph.py:469`).
-- [ ] 4.4 Unit tests: store/render with and without mandate; legacy-entry compatibility; round-trip through `_parse_entry()`.
-- [ ] 4.5 Pass mandate into Phase B reflection: `reflect_on_final_decision()` (`tradingagents/graph/reflection.py:31`) gets optional `trading_mandate` from the parsed entry at the `_resolve_pending_entries()` call site (`trading_graph.py:318`), and the reflection prompt states decisions were made under it — otherwise outcome lessons can contradict the mandate (e.g. "should have shorted" after a mandate-scoped stay-out "Sell") and poison future cross-ticker context.
+- [x] 4.1 Extend `TradingMemoryLog.store_decision()` (`tradingagents/agents/utils/memory.py`) with optional `trading_mandate`; persist verbatim as a `MANDATE:` section placed BEFORE `DECISION:` (placing it after would be swallowed by `_DECISION_RE` at `memory.py:15`, which captures everything up to `REFLECTION:`/end). Add a `_MANDATE_RE` and parse it in `_parse_entry()`; absent section ⇒ no mandate (legacy).
+- [x] 4.2 Render mandate in `get_past_context()` entries via `_format_full()` and `_format_reflection_only()` (e.g. `[mandate: ...]` line); legacy entries without mandate render unchanged. Idempotency scan (`memory.py:43`) and `update_with_outcome()` tag rewrite are tag-based and unaffected.
+- [x] 4.3 Pass mandate at the `store_decision()` call site in `_run_graph()` (`trading_graph.py:469`).
+- [x] 4.4 Unit tests: store/render with and without mandate; legacy-entry compatibility; round-trip through `_parse_entry()`.
+- [x] 4.5 Pass mandate into Phase B reflection: `reflect_on_final_decision()` (`tradingagents/graph/reflection.py:31`) gets optional `trading_mandate` from the parsed entry at the `_resolve_pending_entries()` call site (`trading_graph.py:318`), and the reflection prompt states decisions were made under it — otherwise outcome lessons can contradict the mandate (e.g. "should have shorted" after a mandate-scoped stay-out "Sell") and poison future cross-ticker context.
 
 ## 5. CLI
 

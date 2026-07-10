@@ -304,5 +304,103 @@ class TestEmptyMandatePromptIdentity(unittest.TestCase):
         self.assertNotIn("User mandate", captured[0])
 
 
+class TestMemoryLogMandate(unittest.TestCase):
+    def test_store_and_parse_mandate_round_trip(self):
+        import tempfile
+        from pathlib import Path
+
+        from tradingagents.agents.utils.memory import TradingMemoryLog
+
+        with tempfile.TemporaryDirectory() as td:
+            log = TradingMemoryLog({"memory_log_path": str(Path(td) / "mem.md")})
+            mandate = "spot long-only entry evaluation"
+            log.store_decision(
+                "BTC-USD",
+                "2026-07-10",
+                "Rating: Sell\nStay out.",
+                trading_mandate=mandate,
+            )
+            entries = log.load_entries()
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0]["trading_mandate"], mandate)
+            raw = Path(td, "mem.md").read_text(encoding="utf-8")
+            self.assertIn("MANDATE:\n", raw)
+            self.assertLess(raw.index("MANDATE:"), raw.index("DECISION:"))
+
+    def test_store_without_mandate_has_no_section(self):
+        import tempfile
+        from pathlib import Path
+
+        from tradingagents.agents.utils.memory import TradingMemoryLog
+
+        with tempfile.TemporaryDirectory() as td:
+            log = TradingMemoryLog({"memory_log_path": str(Path(td) / "mem.md")})
+            log.store_decision("NVDA", "2026-07-10", "Rating: Buy")
+            entries = log.load_entries()
+            self.assertEqual(entries[0].get("trading_mandate"), "")
+            raw = Path(td, "mem.md").read_text(encoding="utf-8")
+            self.assertNotIn("MANDATE:", raw)
+
+    def test_past_context_renders_mandate_annotation(self):
+        import tempfile
+        from pathlib import Path
+
+        from tradingagents.agents.utils.memory import TradingMemoryLog
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "mem.md"
+            # Resolved entry with mandate (not pending)
+            path.write_text(
+                "[2026-06-01 | BTC-USD | Sell | +1.0% | -2.0% | 5d]\n\n"
+                "MANDATE:\nspot long-only entry evaluation\n\n"
+                "DECISION:\nRating: Sell\nStay out.\n\n"
+                "REFLECTION:\nMissed nothing; stay-out was correct.\n\n"
+                "<!-- ENTRY_END -->\n\n",
+                encoding="utf-8",
+            )
+            log = TradingMemoryLog({"memory_log_path": str(path)})
+            ctx = log.get_past_context("BTC-USD")
+            self.assertIn("[mandate: spot long-only entry evaluation]", ctx)
+
+    def test_legacy_entry_without_mandate_renders_unchanged(self):
+        import tempfile
+        from pathlib import Path
+
+        from tradingagents.agents.utils.memory import TradingMemoryLog
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "mem.md"
+            path.write_text(
+                "[2026-06-01 | NVDA | Buy | +1.0% | +0.5% | 5d]\n\n"
+                "DECISION:\nRating: Buy\nGo long.\n\n"
+                "REFLECTION:\nThesis held.\n\n"
+                "<!-- ENTRY_END -->\n\n",
+                encoding="utf-8",
+            )
+            log = TradingMemoryLog({"memory_log_path": str(path)})
+            entry = log.load_entries()[0]
+            self.assertEqual(entry.get("trading_mandate"), "")
+            formatted = log._format_full(entry)
+            self.assertNotIn("[mandate:", formatted)
+            self.assertIn("DECISION:\nRating: Buy", formatted)
+
+    def test_reflection_prompt_includes_mandate(self):
+        from unittest.mock import MagicMock
+
+        from tradingagents.graph.reflection import Reflector
+
+        llm = MagicMock()
+        llm.invoke.return_value = MagicMock(content="lesson")
+        Reflector(llm).reflect_on_final_decision(
+            final_decision="Rating: Sell",
+            raw_return=0.1,
+            alpha_return=0.05,
+            trading_mandate="spot long-only entry evaluation",
+        )
+        human = llm.invoke.call_args.args[0][1][1]
+        self.assertIn("spot long-only entry evaluation", human)
+        self.assertIn("made under the following trading mandate", human)
+
+
 if __name__ == "__main__":
     unittest.main()
