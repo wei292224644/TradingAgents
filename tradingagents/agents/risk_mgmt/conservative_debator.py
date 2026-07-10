@@ -1,6 +1,7 @@
 from tradingagents.agents.utils.agent_utils import (
     get_instrument_context_from_state,
     get_language_instruction,
+    get_mandate_from_state,
 )
 
 
@@ -18,16 +19,26 @@ def create_conservative_debator(llm):
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         instrument_context = get_instrument_context_from_state(state)
+        mandate_block = get_mandate_from_state(state)
+        mandate_reframe = (
+            "\nUnder the user mandate, argue against entry timing or that a better "
+            "entry exists at a lower level — do not argue against the mandate itself "
+            "or recommend instruments, directions, or strategies it excludes. Extreme "
+            "adverse evidence means recommending Hold/Sell as stay-out, not a short "
+            "or excluded instrument.\n"
+            if mandate_block
+            else ""
+        )
 
         trader_decision = state["trader_investment_plan"]
 
         prompt = f"""As the Conservative Risk Analyst, your primary objective is to protect assets, minimize volatility, and ensure steady, reliable growth. You prioritize stability, security, and risk mitigation, carefully assessing potential losses, economic downturns, and market volatility. When evaluating the trader's decision or plan, critically examine high-risk elements, pointing out where the decision may expose the firm to undue risk and where more cautious alternatives could secure long-term gains. Here is the trader's decision:
 
 {trader_decision}
-
+{mandate_reframe}
 Your task is to actively counter the arguments of the Aggressive and Neutral Analysts, highlighting where their views may overlook potential threats or fail to prioritize sustainability. Respond directly to their points, drawing from the following data sources to build a convincing case for a low-risk approach adjustment to the trader's decision:
 
-{instrument_context}
+{instrument_context}{mandate_block}
 Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}

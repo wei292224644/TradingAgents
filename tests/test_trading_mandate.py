@@ -204,5 +204,105 @@ class TestAnalystMandateInjection(unittest.TestCase):
         self.assertIn("User mandate (binding constraints for recommendations)", system_text)
 
 
+class TestTraderAndResearcherMandate(unittest.TestCase):
+    def test_trader_user_message_includes_mandate(self):
+        from unittest.mock import MagicMock, patch
+
+        from tradingagents.agents.trader.trader import create_trader
+
+        mandate = "Spot long-only; no derivatives"
+        captured = {}
+
+        def fake_invoke(structured_llm, llm, messages, render_fn, label):
+            captured["messages"] = messages
+            return "Rating: Hold"
+
+        llm = MagicMock()
+        with patch(
+            "tradingagents.agents.trader.trader.bind_structured",
+            return_value=MagicMock(),
+        ), patch(
+            "tradingagents.agents.trader.trader.invoke_structured_or_freetext",
+            side_effect=fake_invoke,
+        ):
+            node = create_trader(llm)
+            node(
+                {
+                    "company_of_interest": "BTC-USD",
+                    "instrument_context": "The instrument to analyze is `BTC-USD`.",
+                    "investment_plan": "plan",
+                    "trading_mandate": mandate,
+                }
+            )
+        user_text = captured["messages"][1]["content"]
+        self.assertIn(mandate, user_text)
+        self.assertIn("User mandate (binding constraints for recommendations)", user_text)
+
+    def test_bear_reframe_present_only_when_mandate_set(self):
+        from unittest.mock import MagicMock
+
+        from tradingagents.agents.researchers.bear_researcher import create_bear_researcher
+
+        llm = MagicMock()
+        llm.invoke.return_value = MagicMock(content="bearish")
+        node = create_bear_researcher(llm)
+        base_state = {
+            "investment_debate_state": {
+                "history": "",
+                "bear_history": "",
+                "bull_history": "",
+                "current_response": "",
+                "count": 0,
+            },
+            "market_report": "",
+            "sentiment_report": "",
+            "news_report": "",
+            "fundamentals_report": "",
+            "company_of_interest": "BTC-USD",
+            "asset_type": "crypto",
+            "instrument_context": "The instrument to analyze is `BTC-USD`.",
+        }
+        node({**base_state, "trading_mandate": ""})
+        empty_prompt = llm.invoke.call_args.args[0]
+        self.assertNotIn("argue against entry timing", empty_prompt)
+
+        node({**base_state, "trading_mandate": "Spot long-only"})
+        mandate_prompt = llm.invoke.call_args.args[0]
+        self.assertIn("argue against entry timing", mandate_prompt)
+        self.assertIn("Spot long-only", mandate_prompt)
+
+
+class TestEmptyMandatePromptIdentity(unittest.TestCase):
+    def test_trader_empty_mandate_matches_absent_mandate(self):
+        from unittest.mock import MagicMock, patch
+
+        from tradingagents.agents.trader.trader import create_trader
+
+        captured = []
+
+        def fake_invoke(structured_llm, llm, messages, render_fn, label):
+            captured.append(messages[1]["content"])
+            return "Rating: Hold"
+
+        llm = MagicMock()
+        with patch(
+            "tradingagents.agents.trader.trader.bind_structured",
+            return_value=MagicMock(),
+        ), patch(
+            "tradingagents.agents.trader.trader.invoke_structured_or_freetext",
+            side_effect=fake_invoke,
+        ):
+            node = create_trader(llm)
+            base = {
+                "company_of_interest": "NVDA",
+                "instrument_context": "The instrument to analyze is `NVDA`.",
+                "investment_plan": "plan",
+            }
+            node(base)
+            node({**base, "trading_mandate": ""})
+        self.assertEqual(captured[0], captured[1])
+        self.assertNotIn("User mandate", captured[0])
+
+
 if __name__ == "__main__":
     unittest.main()

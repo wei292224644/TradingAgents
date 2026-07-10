@@ -14,11 +14,11 @@
 ## 3. Prompt injection (12 agent sites)
 
 - [x] 3.1 Analysts: `market_analyst.py`, `fundamentals_analyst.py`, `news_analyst.py`, `sentiment_analyst.py` — inject mandate block next to `instrument_context`.
-- [ ] 3.2 Researchers: `bull_researcher.py`, `bear_researcher.py` — inject block; bear gets conditional reframing sentence (argue entry timing under mandate, not against mandate).
-- [ ] 3.3 Trader: `trader.py` — inject block into user message.
-- [ ] 3.4 Risk debators: `aggressive_debator.py`, `conservative_debator.py`, `neutral_debator.py` — inject block; conservative gets the same conditional reframing as bear.
-- [ ] 3.5 Managers: `research_manager.py`, `portfolio_manager.py` — inject block.
-- [ ] 3.6 Test: with empty mandate, rendered prompts are byte-identical to pre-change output (snapshot or string-equality test on a representative agent).
+- [x] 3.2 Researchers: `bull_researcher.py`, `bear_researcher.py` — inject block; bear gets conditional reframing sentence (argue entry timing under mandate, not against mandate).
+- [x] 3.3 Trader: `trader.py` — inject block into user message.
+- [x] 3.4 Risk debators: `aggressive_debator.py`, `conservative_debator.py`, `neutral_debator.py` — inject block; conservative gets the same conditional reframing as bear.
+- [x] 3.5 Managers: `research_manager.py`, `portfolio_manager.py` — inject block.
+- [x] 3.6 Test: with empty mandate, rendered prompts are byte-identical to pre-change output (snapshot or string-equality test on a representative agent).
 
 ## 4. Memory log
 

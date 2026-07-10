@@ -1,6 +1,7 @@
 from tradingagents.agents.utils.agent_utils import (
     get_instrument_context_from_state,
     get_language_instruction,
+    get_mandate_from_state,
 )
 
 
@@ -16,6 +17,16 @@ def create_bear_researcher(llm):
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         instrument_context = get_instrument_context_from_state(state)
+        mandate_block = get_mandate_from_state(state)
+        mandate_reframe = (
+            "\nUnder the user mandate, argue against entry timing or that a better "
+            "entry exists at a lower level — do not argue against the mandate itself "
+            "or recommend instruments, directions, or strategies it excludes. Extreme "
+            "adverse evidence means recommending Hold/Sell as stay-out, not a short "
+            "or excluded instrument.\n"
+            if mandate_block
+            else ""
+        )
         asset_type = state.get("asset_type", "stock")
         target_label = "stock" if asset_type == "stock" else "asset"
         fundamentals_label = (
@@ -25,7 +36,7 @@ def create_bear_researcher(llm):
         )
 
         prompt = f"""You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
-
+{mandate_reframe}
 Key points to focus on:
 
 - Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
@@ -36,7 +47,7 @@ Key points to focus on:
 
 Resources available:
 
-{instrument_context}
+{instrument_context}{mandate_block}
 Market research report: {market_research_report}
 Social media sentiment report: {sentiment_report}
 Latest world affairs news: {news_report}
