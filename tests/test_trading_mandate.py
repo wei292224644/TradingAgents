@@ -148,6 +148,25 @@ class TestGetMandateFromState(unittest.TestCase):
         self.assertIn("constrains recommendations, not evidence", block)
         self.assertTrue(block.startswith("\n\n"))
 
+    def test_create_msg_delete_placeholder_includes_mandate(self):
+        from langchain_core.messages import AIMessage
+
+        from tradingagents.agents.utils.agent_utils import create_msg_delete
+
+        mandate = "Spot long-only; no derivatives"
+        state = {
+            "messages": [AIMessage(content="prior", id="m1")],
+            "company_of_interest": "BTC-USD",
+            "asset_type": "crypto",
+            "instrument_context": "The instrument to analyze is `BTC-USD`.",
+            "trade_date": "2026-07-10",
+            "trading_mandate": mandate,
+        }
+        result = create_msg_delete()(state)
+        placeholder = result["messages"][-1]
+        self.assertIn(mandate, placeholder.content)
+        self.assertIn("User mandate (binding constraints for recommendations)", placeholder.content)
+
 
 if __name__ == "__main__":
     unittest.main()

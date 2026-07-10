@@ -225,10 +225,12 @@ def create_msg_delete():
 
         instrument_context = get_instrument_context_from_state(state)
         trade_date = state.get("trade_date", "the requested date")
+        mandate_block = get_mandate_from_state(state)
         placeholder = HumanMessage(
             content=(
                 f"Proceed with your assigned analysis for this workflow. "
                 f"{instrument_context} The analysis date is {trade_date}."
+                f"{mandate_block}"
             )
         )
         return {"messages": removal_operations + [placeholder]}
