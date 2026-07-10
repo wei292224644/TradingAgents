@@ -504,7 +504,7 @@ class TradingAgentsGraph:
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
-        self.log_states_dict[str(trade_date)] = {
+        logged = {
             "company_of_interest": final_state["company_of_interest"],
             "trade_date": final_state["trade_date"],
             "market_report": final_state["market_report"],
@@ -533,6 +533,10 @@ class TradingAgentsGraph:
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
         }
+        mandate = final_state.get("trading_mandate") or ""
+        if isinstance(mandate, str) and mandate.strip():
+            logged["trading_mandate"] = mandate.strip()
+        self.log_states_dict[str(trade_date)] = logged
 
         # Save to file. Reject ticker values that would escape the
         # results directory when joined as a path component.

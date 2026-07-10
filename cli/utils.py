@@ -132,6 +132,30 @@ def get_analysis_date() -> str:
     return date.strip()
 
 
+def get_trading_mandate() -> str:
+    """Optional free-text trading mandate; Enter skips.
+
+    When ``TRADINGAGENTS_MANDATE`` is set in the environment the interactive
+    prompt is skipped (same env-precedence pattern as other CLI selections).
+    """
+    if "TRADINGAGENTS_MANDATE" in os.environ:
+        return os.environ["TRADINGAGENTS_MANDATE"].strip()
+
+    response = questionary.text(
+        "Trading mandate / analysis focus (Enter to skip):",
+        default="",
+        style=questionary.Style(
+            [
+                ("text", "fg:green"),
+                ("highlighted", "noinherit"),
+            ]
+        ),
+    ).ask()
+    if response is None:
+        return ""
+    return response.strip()
+
+
 def select_analysts(asset_type: AssetType = AssetType.STOCK) -> list[AnalystType]:
     """Select analysts using an interactive checkbox."""
     available_analysts = filter_analysts_for_asset_type(

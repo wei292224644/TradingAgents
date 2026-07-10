@@ -30,13 +30,13 @@
 
 ## 5. CLI
 
-- [ ] 5.1 Add `get_trading_mandate()` to `cli/utils.py`: optional `questionary.text`, Enter skips; `TRADINGAGENTS_MANDATE` env var bypasses the prompt (existing env-precedence pattern).
-- [ ] 5.2 Wire into `get_user_selections()` (after ticker/date) and pass through the CLI graph invocation path in `cli/main.py`.
-- [ ] 5.3 Show the mandate in the run header messages (alongside ticker/date) when set.
+- [x] 5.1 Add `get_trading_mandate()` to `cli/utils.py`: optional `questionary.text`, Enter skips; `TRADINGAGENTS_MANDATE` env var bypasses the prompt (existing env-precedence pattern).
+- [x] 5.2 Wire into `get_user_selections()` (after ticker/date) and pass through the CLI graph invocation path in `cli/main.py`.
+- [x] 5.3 Show the mandate in the run header messages (alongside ticker/date) when set.
 
 ## 6. Reports and regression
 
-- [ ] 6.1 Include mandate in `_log_state()` output and report tree header when set.
+- [x] 6.1 Include mandate in `_log_state()` output and report tree header when set.
 - [ ] 6.2 Run full test suite; fix regressions.
 - [ ] 6.3 Manual check: BTC-USD crypto run with mandate "现货 long-only，评估是否有入场机会及理想入场区间，不要建议做空或衍生品" — confirm no short/perp recommendations and the decision addresses entry timing/zone.
 - [ ] 6.4 Manual check: same ticker without mandate — output shape matches pre-change baseline.
