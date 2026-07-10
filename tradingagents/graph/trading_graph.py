@@ -1,5 +1,6 @@
 # TradingAgents/graph/trading_graph.py
 
+import hashlib
 import json
 import logging
 import os
@@ -345,19 +346,24 @@ class TradingAgentsGraph:
         identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity)
 
-    def _run_signature(self, asset_type: str) -> str:
+    def _run_signature(self, asset_type: str, trading_mandate: str = "") -> str:
         """Graph-shape inputs that must invalidate a checkpoint if changed.
 
         Keyed into the checkpoint thread ID so a resume under a different analyst
-        selection, debate/risk depth, or asset mode starts fresh instead of
-        silently continuing the previous graph (#1089).
+        selection, debate/risk depth, asset mode, or trading mandate starts fresh
+        instead of silently continuing the previous graph (#1089).
         """
-        return "|".join([
+        parts = [
             "analysts=" + ",".join(self.selected_analysts),
             f"debate={self.config['max_debate_rounds']}",
             f"risk={self.config['max_risk_discuss_rounds']}",
             f"asset={asset_type}",
-        ])
+        ]
+        normalized = trading_mandate.strip()
+        if normalized:
+            digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+            parts.append(f"mandate={digest}")
+        return "|".join(parts)
 
     def propagate(self, company_name, trade_date, asset_type: str = "stock", trading_mandate: str = ""):
         """Run the trading agents graph for a company on a specific date.
@@ -387,7 +393,7 @@ class TradingAgentsGraph:
 
             step = checkpoint_step(
                 self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
+                self._run_signature(asset_type, trading_mandate=trading_mandate),
             )
             if step is not None:
                 logger.info(
@@ -443,7 +449,11 @@ class TradingAgentsGraph:
         # Inject thread_id so same ticker+date+graph-shape resumes; a different
         # date or graph shape starts fresh (#1089).
         if self.config.get("checkpoint_enabled"):
-            tid = thread_id(company_name, str(trade_date), self._run_signature(asset_type))
+            tid = thread_id(
+                company_name,
+                str(trade_date),
+                self._run_signature(asset_type, trading_mandate=trading_mandate),
+            )
             args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = tid
 
         if self.debug:
@@ -485,7 +495,7 @@ class TradingAgentsGraph:
         if self.config.get("checkpoint_enabled"):
             clear_checkpoint(
                 self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
+                self._run_signature(asset_type, trading_mandate=trading_mandate),
             )
 
         return final_state, self.process_signal(final_state["final_trade_decision"])

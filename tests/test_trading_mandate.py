@@ -102,5 +102,33 @@ class TestPropagateThreadsMandate(unittest.TestCase):
             self.assertEqual(kwargs.get("trading_mandate"), "")
 
 
+class TestRunSignatureIncludesMandate(unittest.TestCase):
+    def _bare_graph(self):
+        g = object.__new__(TradingAgentsGraph)
+        g.selected_analysts = ("market", "news")
+        g.config = {"max_debate_rounds": 1, "max_risk_discuss_rounds": 1}
+        return g
+
+    def test_empty_mandate_leaves_signature_unchanged(self):
+        g = self._bare_graph()
+        base = g._run_signature("stock")
+        self.assertEqual(base, g._run_signature("stock", trading_mandate=""))
+        self.assertEqual(base, g._run_signature("stock", trading_mandate="   "))
+
+    def test_different_mandate_changes_signature(self):
+        g = self._bare_graph()
+        base = g._run_signature("stock")
+        with_a = g._run_signature("stock", trading_mandate="mandate A")
+        with_b = g._run_signature("stock", trading_mandate="mandate B")
+        self.assertNotEqual(base, with_a)
+        self.assertNotEqual(with_a, with_b)
+
+    def test_mandate_is_strip_normalized(self):
+        g = self._bare_graph()
+        a = g._run_signature("stock", trading_mandate="  same mandate  ")
+        b = g._run_signature("stock", trading_mandate="same mandate")
+        self.assertEqual(a, b)
+
+
 if __name__ == "__main__":
     unittest.main()
