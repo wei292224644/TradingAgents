@@ -1000,7 +1000,7 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     config["google_thinking_level"] = selections.get("google_thinking_level")
     config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
     config["anthropic_effort"] = selections.get("anthropic_effort")
-    config["output_language"] = selections.get("output_language", "English")
+    config["output_language"] = selections.get("output_language", "Chinese")
     # Crypto assets price from OKX first (it lists meme coins Yahoo doesn't),
     # then Binance (it lists tokens OKX doesn't, e.g. Chinese-named meme
     # coins), then Yahoo. Only applied when the vendor is still the shipped
