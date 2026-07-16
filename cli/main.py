@@ -31,8 +31,10 @@ from cli.utils import (
     confirm_ollama_endpoint,
     detect_asset_type,
     ensure_api_key,
+    filter_analysts_for_asset_type,
     get_ticker,
     get_trading_mandate,
+    parse_analysts_arg,
     prompt_openai_compatible_url,
     resolve_backend_url,
     select_analysts,
@@ -40,6 +42,10 @@ from cli.utils import (
     select_llm_provider,
     select_research_depth,
     select_shallow_thinking_agent,
+    validate_analysis_date_arg,
+    validate_provider_arg,
+    validate_research_depth_arg,
+    validate_ticker_arg,
 )
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.analyst_execution import (
@@ -480,8 +486,15 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     layout["footer"].update(Panel(stats_table, border_style="grey50"))
 
 
-def get_user_selections():
-    """Get all user selections before starting the analysis display."""
+def get_user_selections(cli_overrides: dict | None = None):
+    """Get all user selections before starting the analysis display.
+
+    Precedence for each step: explicit CLI override > ``TRADINGAGENTS_*`` env
+    > interactive prompt. Missing CLI keys keep the previous env/interactive
+    behavior unchanged.
+    """
+    overrides = cli_overrides or {}
+
     # Display ASCII art welcome message
     with open(Path(__file__).parent / "static" / "welcome.txt", encoding="utf-8") as f:
         welcome_ascii = f.read()
@@ -534,14 +547,18 @@ def get_user_selections():
         return prompt_fn()
 
     # Step 1: Ticker symbol
-    console.print(
-        create_question_box(
-            "Step 1: Ticker Symbol",
-            "Enter the ticker, with exchange suffix when needed (e.g. SPY, 0700.HK, BTC-USD)",
-            "SPY",
+    if "ticker" in overrides:
+        selected_ticker = overrides["ticker"]
+        console.print(f"[green]✓ Ticker from CLI:[/green] {selected_ticker}")
+    else:
+        console.print(
+            create_question_box(
+                "Step 1: Ticker Symbol",
+                "Enter the ticker, with exchange suffix when needed (e.g. SPY, 0700.HK, BTC-USD)",
+                "SPY",
+            )
         )
-    )
-    selected_ticker = get_ticker()
+        selected_ticker = get_ticker()
     asset_type = detect_asset_type(selected_ticker)
     # Only announce when it's not the default stock path, to avoid printing
     # "stock" on every run.
@@ -551,18 +568,28 @@ def get_user_selections():
         )
 
     # Step 2: Analysis date
-    default_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    console.print(
-        create_question_box(
-            "Step 2: Analysis Date",
-            "Enter the analysis date (YYYY-MM-DD)",
-            default_date,
+    if "date" in overrides:
+        analysis_date = overrides["date"]
+        console.print(f"[green]✓ Analysis date from CLI:[/green] {analysis_date}")
+    else:
+        default_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        console.print(
+            create_question_box(
+                "Step 2: Analysis Date",
+                "Enter the analysis date (YYYY-MM-DD)",
+                default_date,
+            )
         )
-    )
-    analysis_date = get_analysis_date()
+        analysis_date = get_analysis_date()
 
-    # Step 3: Trading mandate (skipped when set via TRADINGAGENTS_MANDATE)
-    if "TRADINGAGENTS_MANDATE" in os.environ:
+    # Step 3: Trading mandate (CLI > TRADINGAGENTS_MANDATE > prompt)
+    if "mandate" in overrides:
+        trading_mandate = overrides["mandate"]
+        if trading_mandate:
+            console.print(f"[green]✓ Trading mandate from CLI:[/green] {trading_mandate}")
+        else:
+            console.print("[green]✓ Trading mandate from CLI:[/green] (empty)")
+    elif "TRADINGAGENTS_MANDATE" in os.environ:
         trading_mandate = get_trading_mandate()
         if trading_mandate:
             console.print(
@@ -579,8 +606,11 @@ def get_user_selections():
         )
         trading_mandate = get_trading_mandate()
 
-    # Step 4: Output language (skipped when set via TRADINGAGENTS_OUTPUT_LANGUAGE)
-    if os.environ.get("TRADINGAGENTS_OUTPUT_LANGUAGE"):
+    # Step 4: Output language (CLI > TRADINGAGENTS_OUTPUT_LANGUAGE > prompt)
+    if "language" in overrides:
+        output_language = overrides["language"]
+        console.print(f"[green]✓ Output language from CLI:[/green] {output_language}")
+    elif os.environ.get("TRADINGAGENTS_OUTPUT_LANGUAGE"):
         output_language = DEFAULT_CONFIG["output_language"]
         console.print(
             f"[green]✓ Output language from environment:[/green] {output_language}"
@@ -595,24 +625,45 @@ def get_user_selections():
         output_language = ask_output_language()
 
     # Step 5: Select analysts
-    console.print(
-        create_question_box(
-            "Step 5: Analysts Team", "Select your LLM analyst agents for the analysis"
+    if "analysts" in overrides:
+        selected_analysts = filter_analysts_for_asset_type(
+            list(overrides["analysts"]), asset_type
         )
-    )
-    selected_analysts = select_analysts(asset_type)
-    console.print(
-        f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
-    )
+        if not selected_analysts:
+            console.print(
+                "[red]No analysts left after asset-type filtering. "
+                "Crypto runs cannot use fundamentals-only selection.[/red]"
+            )
+            raise typer.Exit(code=1)
+        console.print(
+            f"[green]✓ Analysts from CLI:[/green] "
+            f"{', '.join(analyst.value for analyst in selected_analysts)}"
+        )
+    else:
+        console.print(
+            create_question_box(
+                "Step 5: Analysts Team", "Select your LLM analyst agents for the analysis"
+            )
+        )
+        selected_analysts = select_analysts(asset_type)
+        console.print(
+            f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
+        )
 
-    # Step 6: Research depth (skipped when both round counts are set via env).
+    # Step 6: Research depth (CLI > both round envs > prompt).
     # Research depth maps to the debate + risk round counts; when both are
     # supplied through TRADINGAGENTS_MAX_DEBATE_ROUNDS / _MAX_RISK_ROUNDS we keep
     # the run non-interactive and honor the env values (#977).
+    research_depth_from_cli = "research_depth" in overrides
     depth_from_env = bool(os.environ.get("TRADINGAGENTS_MAX_DEBATE_ROUNDS")) and bool(
         os.environ.get("TRADINGAGENTS_MAX_RISK_ROUNDS")
     )
-    if depth_from_env:
+    if research_depth_from_cli:
+        selected_research_depth = overrides["research_depth"]
+        console.print(
+            f"[green]✓ Research depth from CLI:[/green] {selected_research_depth}"
+        )
+    elif depth_from_env:
         selected_research_depth = DEFAULT_CONFIG["max_debate_rounds"]
         console.print(
             f"[green]✓ Research depth from environment:[/green] "
@@ -627,16 +678,35 @@ def get_user_selections():
         )
         selected_research_depth = select_research_depth()
 
-    # Step 7: LLM Provider (skipped when set via TRADINGAGENTS_LLM_PROVIDER).
-    # The backend URL comes from TRADINGAGENTS_LLM_BACKEND_URL when set,
+    # Step 7: LLM Provider (CLI > TRADINGAGENTS_LLM_PROVIDER > prompt).
+    # The backend URL comes from --backend-url, then TRADINGAGENTS_LLM_BACKEND_URL,
     # otherwise the provider's default endpoint — the same value the menu
     # would have picked.
+    provider_from_cli = "provider" in overrides
     provider_from_env = bool(os.environ.get("TRADINGAGENTS_LLM_PROVIDER"))
-    if provider_from_env:
-        selected_llm_provider = DEFAULT_CONFIG["llm_provider"].lower()
-        backend_url = resolve_backend_url(
-            selected_llm_provider, env_url=DEFAULT_CONFIG["backend_url"]
+    if provider_from_cli:
+        selected_llm_provider = overrides["provider"].lower()
+        if "backend_url" in overrides:
+            backend_url = overrides["backend_url"]
+        else:
+            backend_url = resolve_backend_url(
+                selected_llm_provider, env_url=DEFAULT_CONFIG["backend_url"]
+            )
+        console.print(
+            f"[green]✓ LLM provider from CLI:[/green] {selected_llm_provider}"
         )
+        console.print(f"[green]✓ Backend URL:[/green] {backend_url}")
+        if selected_llm_provider == "openai_compatible" and not backend_url:
+            backend_url = prompt_openai_compatible_url()
+        ensure_api_key(selected_llm_provider)
+    elif provider_from_env:
+        selected_llm_provider = DEFAULT_CONFIG["llm_provider"].lower()
+        if "backend_url" in overrides:
+            backend_url = overrides["backend_url"]
+        else:
+            backend_url = resolve_backend_url(
+                selected_llm_provider, env_url=DEFAULT_CONFIG["backend_url"]
+            )
         console.print(f"[green]✓ LLM provider from environment:[/green] {selected_llm_provider}")
         console.print(f"[green]✓ Backend URL:[/green] {backend_url}")
         # Still confirm/persist the API key so the run doesn't fail later.
@@ -659,11 +729,13 @@ def get_user_selections():
         elif selected_llm_provider == "glm":
             selected_llm_provider, backend_url = ask_glm_region()
 
-        # Honor an explicit env backend URL even when the provider was chosen
-        # interactively, so it isn't overwritten by the menu default (#978).
-        backend_url = resolve_backend_url(
-            selected_llm_provider, backend_url, env_url=DEFAULT_CONFIG["backend_url"]
-        )
+        # Explicit CLI backend URL wins; otherwise honor env over menu default.
+        if "backend_url" in overrides:
+            backend_url = overrides["backend_url"]
+        else:
+            backend_url = resolve_backend_url(
+                selected_llm_provider, backend_url, env_url=DEFAULT_CONFIG["backend_url"]
+            )
 
         # The generic OpenAI-compatible endpoint has no default; ask for it if
         # neither the menu nor the environment supplied one.
@@ -680,8 +752,45 @@ def get_user_selections():
         # doesn't fail later at the first API call.
         ensure_api_key(selected_llm_provider)
 
-    # Step 8: Thinking agents (skipped when either model is set via environment)
-    if os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM") or os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM"):
+    # Step 8: Thinking agents (CLI per-model > either model env > prompt)
+    cli_has_quick = "quick_model" in overrides
+    cli_has_deep = "deep_model" in overrides
+    env_has_models = bool(
+        os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM")
+        or os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM")
+    )
+    if cli_has_quick or cli_has_deep:
+        if cli_has_quick:
+            selected_shallow_thinker = overrides["quick_model"]
+        elif env_has_models:
+            selected_shallow_thinker = DEFAULT_CONFIG["quick_think_llm"]
+        else:
+            console.print(
+                create_question_box(
+                    "Step 8: Thinking Agents",
+                    "Select your quick-thinking agent for analysis",
+                )
+            )
+            selected_shallow_thinker = select_shallow_thinking_agent(
+                selected_llm_provider
+            )
+        if cli_has_deep:
+            selected_deep_thinker = overrides["deep_model"]
+        elif env_has_models:
+            selected_deep_thinker = DEFAULT_CONFIG["deep_think_llm"]
+        else:
+            console.print(
+                create_question_box(
+                    "Step 8: Thinking Agents",
+                    "Select your deep-thinking agent for analysis",
+                )
+            )
+            selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
+        console.print(
+            f"[green]✓ Thinking agents:[/green] "
+            f"quick={selected_shallow_thinker}, deep={selected_deep_thinker}"
+        )
+    elif env_has_models:
         selected_shallow_thinker = DEFAULT_CONFIG["quick_think_llm"]
         selected_deep_thinker = DEFAULT_CONFIG["deep_think_llm"]
         console.print(
@@ -698,32 +807,51 @@ def get_user_selections():
         selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
 
     # Step 9: Provider-specific reasoning/thinking configuration. Each knob is
-    # settable via its TRADINGAGENTS_* env var; when that var is set (or the
-    # provider itself came from env) the prompt is skipped and the configured
-    # value is used — same env-precedence rule as the steps above. None = each
-    # provider's own default.
+    # settable via CLI or its TRADINGAGENTS_* env var; when the provider itself
+    # came from CLI/env the interactive prompt is skipped — same precedence
+    # rule as the steps above. None = each provider's own default.
     thinking_level = None
     reasoning_effort = None
     anthropic_effort = None
 
     provider_lower = selected_llm_provider.lower()
-    if provider_from_env:
-        thinking_level = DEFAULT_CONFIG["google_thinking_level"]
-        reasoning_effort = DEFAULT_CONFIG["openai_reasoning_effort"]
-        anthropic_effort = DEFAULT_CONFIG["anthropic_effort"]
-    elif provider_lower == "google":
+    provider_fixed = provider_from_cli or provider_from_env
+    if "google_thinking_level" in overrides:
+        thinking_level = overrides["google_thinking_level"]
+        console.print(
+            f"[green]✓ Gemini thinking mode from CLI:[/green] {thinking_level}"
+        )
+    if "openai_reasoning_effort" in overrides:
+        reasoning_effort = overrides["openai_reasoning_effort"]
+        console.print(
+            f"[green]✓ OpenAI reasoning effort from CLI:[/green] {reasoning_effort}"
+        )
+    if "anthropic_effort" in overrides:
+        anthropic_effort = overrides["anthropic_effort"]
+        console.print(
+            f"[green]✓ Claude effort from CLI:[/green] {anthropic_effort}"
+        )
+
+    if provider_fixed:
+        if "google_thinking_level" not in overrides:
+            thinking_level = DEFAULT_CONFIG["google_thinking_level"]
+        if "openai_reasoning_effort" not in overrides:
+            reasoning_effort = DEFAULT_CONFIG["openai_reasoning_effort"]
+        if "anthropic_effort" not in overrides:
+            anthropic_effort = DEFAULT_CONFIG["anthropic_effort"]
+    elif provider_lower == "google" and "google_thinking_level" not in overrides:
         thinking_level = thinking_value_or_prompt(
             "TRADINGAGENTS_GOOGLE_THINKING_LEVEL", "google_thinking_level",
             "Gemini thinking mode", "Step 9: Thinking Mode",
             "Configure Gemini thinking mode", ask_gemini_thinking_config,
         )
-    elif provider_lower == "openai":
+    elif provider_lower == "openai" and "openai_reasoning_effort" not in overrides:
         reasoning_effort = thinking_value_or_prompt(
             "TRADINGAGENTS_OPENAI_REASONING_EFFORT", "openai_reasoning_effort",
             "Reasoning effort", "Step 9: Reasoning Effort",
             "Configure OpenAI reasoning effort level", ask_openai_reasoning_effort,
         )
-    elif provider_lower == "anthropic":
+    elif provider_lower == "anthropic" and "anthropic_effort" not in overrides:
         anthropic_effort = thinking_value_or_prompt(
             "TRADINGAGENTS_ANTHROPIC_EFFORT", "anthropic_effort",
             "Claude effort", "Step 9: Effort Level",
@@ -737,6 +865,7 @@ def get_user_selections():
         "trading_mandate": trading_mandate,
         "analysts": selected_analysts,
         "research_depth": selected_research_depth,
+        "research_depth_from_cli": research_depth_from_cli,
         "llm_provider": selected_llm_provider.lower(),
         "backend_url": backend_url,
         "shallow_thinker": selected_shallow_thinker,
@@ -985,13 +1114,18 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     value on DEFAULT_CONFIG is preserved unless the user overrode it on the CLI.
     """
     config = DEFAULT_CONFIG.copy()
-    # Research depth sets both round counts, but an explicit env override
+    # Research depth sets both round counts. Precedence: CLI --research-depth
+    # wins over env; otherwise an explicit env override
     # (TRADINGAGENTS_MAX_DEBATE_ROUNDS / _MAX_RISK_ROUNDS) wins over the
     # interactive selection — leave the env-applied value in place (#977).
-    if not os.environ.get("TRADINGAGENTS_MAX_DEBATE_ROUNDS"):
+    if selections.get("research_depth_from_cli"):
         config["max_debate_rounds"] = selections["research_depth"]
-    if not os.environ.get("TRADINGAGENTS_MAX_RISK_ROUNDS"):
         config["max_risk_discuss_rounds"] = selections["research_depth"]
+    else:
+        if not os.environ.get("TRADINGAGENTS_MAX_DEBATE_ROUNDS"):
+            config["max_debate_rounds"] = selections["research_depth"]
+        if not os.environ.get("TRADINGAGENTS_MAX_RISK_ROUNDS"):
+            config["max_risk_discuss_rounds"] = selections["research_depth"]
     config["quick_think_llm"] = selections["shallow_thinker"]
     config["deep_think_llm"] = selections["deep_thinker"]
     config["backend_url"] = selections["backend_url"]
@@ -1029,9 +1163,13 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     return config
 
 
-def run_analysis(checkpoint: bool | None = None):
+def run_analysis(
+    checkpoint: bool | None = None,
+    cli_overrides: dict | None = None,
+):
+    overrides = cli_overrides or {}
     # First get all user selections
-    selections = get_user_selections()
+    selections = get_user_selections(cli_overrides=overrides)
 
     config = _build_run_config(selections, checkpoint)
 
@@ -1290,16 +1428,27 @@ def run_analysis(checkpoint: bool | None = None):
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
     console.print(f"[dim]{analyst_wall_time_tracker.format_summary()}[/dim]")
 
-    # Prompt to save report
-    save_choice = typer.prompt("Save report?", default="Y").strip().upper()
-    if save_choice in ("Y", "YES", ""):
+    # Save report: CLI --save-report/--no-save-report > interactive prompt
+    if "save_report" in overrides:
+        should_save = bool(overrides["save_report"])
+    else:
+        save_choice = typer.prompt("Save report?", default="Y").strip().upper()
+        should_save = save_choice in ("Y", "YES", "")
+
+    if should_save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
-        save_path_str = typer.prompt(
-            "Save path (press Enter for default)",
-            default=str(default_path)
-        ).strip()
-        save_path = Path(save_path_str)
+        if "report_dir" in overrides and overrides["report_dir"] is not None:
+            save_path = Path(overrides["report_dir"])
+        elif "save_report" in overrides:
+            # Non-interactive save with no explicit dir → default path.
+            save_path = default_path
+        else:
+            save_path_str = typer.prompt(
+                "Save path (press Enter for default)",
+                default=str(default_path)
+            ).strip()
+            save_path = Path(save_path_str)
         try:
             report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
             console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
@@ -1307,14 +1456,204 @@ def run_analysis(checkpoint: bool | None = None):
         except Exception as e:
             console.print(f"[red]Error saving report: {e}[/red]")
 
-    # Prompt to display full report
-    display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
-    if display_choice in ("Y", "YES", ""):
+    # Display report: CLI --display-report/--no-display-report > prompt
+    if "display_report" in overrides:
+        should_display = bool(overrides["display_report"])
+    else:
+        display_choice = typer.prompt(
+            "\nDisplay full report on screen?", default="Y"
+        ).strip().upper()
+        should_display = display_choice in ("Y", "YES", "")
+
+    if should_display:
         display_complete_report(final_state)
+
+
+def build_cli_overrides(
+    *,
+    ticker_arg: str | None = None,
+    ticker: str | None = None,
+    date: str | None = None,
+    mandate: str | None = None,
+    language: str | None = None,
+    analysts: str | None = None,
+    research_depth: int | None = None,
+    provider: str | None = None,
+    backend_url: str | None = None,
+    quick_model: str | None = None,
+    deep_model: str | None = None,
+    openai_reasoning_effort: str | None = None,
+    google_thinking_level: str | None = None,
+    anthropic_effort: str | None = None,
+    save_report: bool | None = None,
+    report_dir: Path | None = None,
+    display_report: bool | None = None,
+) -> dict:
+    """Assemble the cli_overrides dict from explicitly provided analyze() args.
+
+    Only keys the user actually passed are included, so omitted flags still fall
+    through to env / interactive prompts inside get_user_selections().
+    """
+    overrides: dict = {}
+
+    def _ticker(value: str) -> str:
+        try:
+            return validate_ticker_arg(value)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+
+    if ticker_arg is not None and ticker is not None:
+        normalized_arg = _ticker(ticker_arg)
+        normalized_opt = _ticker(ticker)
+        if normalized_arg != normalized_opt:
+            raise typer.BadParameter(
+                f"conflicting tickers: positional {ticker_arg!r} vs --ticker {ticker!r}"
+            )
+        overrides["ticker"] = normalized_arg
+    elif ticker_arg is not None:
+        overrides["ticker"] = _ticker(ticker_arg)
+    elif ticker is not None:
+        overrides["ticker"] = _ticker(ticker)
+
+    def _require(parser, value):
+        try:
+            return parser(value)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+
+    if date is not None:
+        overrides["date"] = _require(validate_analysis_date_arg, date)
+    # mandate: distinguish omitted (None) from explicit empty string
+    if mandate is not None:
+        overrides["mandate"] = mandate
+    if language is not None:
+        overrides["language"] = language.strip()
+        if not overrides["language"]:
+            raise typer.BadParameter("language must be a non-empty string")
+    if analysts is not None:
+        overrides["analysts"] = _require(parse_analysts_arg, analysts)
+    if research_depth is not None:
+        overrides["research_depth"] = _require(validate_research_depth_arg, research_depth)
+    if provider is not None:
+        overrides["provider"] = _require(validate_provider_arg, provider)
+    if backend_url is not None:
+        url = backend_url.strip()
+        if not url.startswith(("http://", "https://")):
+            raise typer.BadParameter(
+                "backend URL must start with http:// or https://"
+            )
+        overrides["backend_url"] = url
+    if quick_model is not None:
+        model = quick_model.strip()
+        if not model:
+            raise typer.BadParameter("quick-model must be a non-empty model id")
+        overrides["quick_model"] = model
+    if deep_model is not None:
+        model = deep_model.strip()
+        if not model:
+            raise typer.BadParameter("deep-model must be a non-empty model id")
+        overrides["deep_model"] = model
+    if openai_reasoning_effort is not None:
+        overrides["openai_reasoning_effort"] = openai_reasoning_effort.strip()
+    if google_thinking_level is not None:
+        overrides["google_thinking_level"] = google_thinking_level.strip()
+    if anthropic_effort is not None:
+        overrides["anthropic_effort"] = anthropic_effort.strip()
+    if save_report is not None:
+        overrides["save_report"] = save_report
+    if report_dir is not None:
+        overrides["report_dir"] = report_dir
+    if display_report is not None:
+        overrides["display_report"] = display_report
+    return overrides
 
 
 @app.command()
 def analyze(
+    ticker_arg: str | None = typer.Argument(
+        None,
+        help="Ticker symbol (optional positional; same as --ticker).",
+    ),
+    ticker: str | None = typer.Option(
+        None,
+        "--ticker",
+        help="Ticker symbol, with exchange suffix when needed (e.g. SPY, 0700.HK, BTC-USD).",
+    ),
+    date: str | None = typer.Option(
+        None,
+        "--date",
+        help="Analysis date in YYYY-MM-DD (not in the future).",
+    ),
+    mandate: str | None = typer.Option(
+        None,
+        "--mandate",
+        help="Optional trading mandate / analysis focus. Pass an empty string to skip.",
+    ),
+    language: str | None = typer.Option(
+        None,
+        "--language",
+        help="Output language for reports (e.g. Chinese, English).",
+    ),
+    analysts: str | None = typer.Option(
+        None,
+        "--analysts",
+        help="Comma-separated analysts: market,social,news,fundamentals.",
+    ),
+    research_depth: int | None = typer.Option(
+        None,
+        "--research-depth",
+        help="Research depth: 1 (shallow), 3 (medium), or 5 (deep).",
+    ),
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        help="LLM provider key (e.g. deepseek, openai, google, anthropic).",
+    ),
+    backend_url: str | None = typer.Option(
+        None,
+        "--backend-url",
+        help="LLM backend base URL (overrides provider default / env).",
+    ),
+    quick_model: str | None = typer.Option(
+        None,
+        "--quick-model",
+        help="Quick-thinking model id (e.g. deepseek-v4-flash).",
+    ),
+    deep_model: str | None = typer.Option(
+        None,
+        "--deep-model",
+        help="Deep-thinking model id (e.g. deepseek-v4-pro).",
+    ),
+    openai_reasoning_effort: str | None = typer.Option(
+        None,
+        "--openai-reasoning-effort",
+        help="OpenAI reasoning effort (e.g. low, medium, high).",
+    ),
+    google_thinking_level: str | None = typer.Option(
+        None,
+        "--google-thinking-level",
+        help="Gemini thinking level (e.g. minimal, high).",
+    ),
+    anthropic_effort: str | None = typer.Option(
+        None,
+        "--anthropic-effort",
+        help="Claude effort level (e.g. low, medium, high).",
+    ),
+    save_report: bool | None = typer.Option(
+        None,
+        "--save-report/--no-save-report",
+        help="Save the final report to disk after the run (skip the prompt).",
+    ),
+    report_dir: Path | None = typer.Option(
+        None,
+        "--report-dir",
+        help="Directory for --save-report (default: ./reports/<TICKER>_<timestamp>).",
+    ),
+    display_report: bool | None = typer.Option(
+        None,
+        "--display-report/--no-display-report",
+        help="Print the full report after the run (skip the prompt).",
+    ),
     checkpoint: bool | None = typer.Option(
         None,
         "--checkpoint/--no-checkpoint",
@@ -1327,11 +1666,36 @@ def analyze(
         help="Delete all saved checkpoints before running (force fresh start).",
     ),
 ):
+    """Run a multi-agent analysis.
+
+    Pass any subset of flags to skip the matching interactive prompts; omitted
+    flags still use TRADINGAGENTS_* env vars or ask interactively.
+    """
     if clear_checkpoints:
         from tradingagents.graph.checkpointer import clear_all_checkpoints
         n = clear_all_checkpoints(DEFAULT_CONFIG["data_cache_dir"])
         console.print(f"[yellow]Cleared {n} checkpoint(s).[/yellow]")
-    run_analysis(checkpoint=checkpoint)
+
+    cli_overrides = build_cli_overrides(
+        ticker_arg=ticker_arg,
+        ticker=ticker,
+        date=date,
+        mandate=mandate,
+        language=language,
+        analysts=analysts,
+        research_depth=research_depth,
+        provider=provider,
+        backend_url=backend_url,
+        quick_model=quick_model,
+        deep_model=deep_model,
+        openai_reasoning_effort=openai_reasoning_effort,
+        google_thinking_level=google_thinking_level,
+        anthropic_effort=anthropic_effort,
+        save_report=save_report,
+        report_dir=report_dir,
+        display_report=display_report,
+    )
+    run_analysis(checkpoint=checkpoint, cli_overrides=cli_overrides)
 
 
 if __name__ == "__main__":

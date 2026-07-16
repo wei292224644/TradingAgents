@@ -1,4 +1,6 @@
+import datetime
 import os
+import re
 from pathlib import Path
 
 import questionary
@@ -19,6 +21,10 @@ ANALYST_ORDER = [
     ("News Analyst", AnalystType.NEWS),
     ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
 ]
+
+ANALYST_BY_VALUE = {analyst.value: analyst for _, analyst in ANALYST_ORDER}
+
+VALID_RESEARCH_DEPTHS = frozenset({1, 3, 5})
 
 CRYPTO_SUFFIXES = ("-USD", "-USDT", "-USDC", "-BTC", "-ETH")
 
@@ -713,3 +719,93 @@ def ask_output_language() -> str:
         ).ask() or "").strip() or "Chinese"
 
     return choice
+
+
+def known_provider_keys() -> set[str]:
+    """Return the set of provider keys accepted by the CLI / provider table."""
+    return {provider_key for _, provider_key, _ in _llm_provider_table()}
+
+
+def validate_ticker_arg(value: str) -> str:
+    """Validate and normalize a CLI ticker argument.
+
+    Empty input is rejected here (unlike the interactive prompt, which falls
+    back to SPY) so an explicit ``--ticker`` / positional ticker must be real.
+    """
+    if value is None or not str(value).strip():
+        raise ValueError("ticker must be a non-empty symbol")
+    raw = str(value).strip()
+    if not is_valid_ticker_input(raw):
+        raise ValueError(
+            f"invalid ticker {raw!r}; examples: {TICKER_INPUT_EXAMPLES}, GC=F"
+        )
+    return normalize_ticker_symbol(raw)
+
+
+def validate_analysis_date_arg(value: str) -> str:
+    """Validate a CLI analysis date (YYYY-MM-DD, not in the future)."""
+    raw = str(value).strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", raw):
+        raise ValueError("date must use YYYY-MM-DD format")
+    try:
+        parsed = datetime.datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError(f"invalid calendar date: {raw}") from exc
+    if parsed.date() > datetime.datetime.now().date():
+        raise ValueError("analysis date cannot be in the future")
+    return raw
+
+
+def parse_analysts_arg(value: str) -> list[AnalystType]:
+    """Parse ``market,social,news`` or space-separated analyst names."""
+    if value is None or not str(value).strip():
+        raise ValueError(
+            "analysts must be a non-empty comma-separated list "
+            f"(one of: {', '.join(ANALYST_BY_VALUE)})"
+        )
+    raw = str(value).strip()
+    parts = [p.strip().lower() for p in re.split(r"[,\s]+", raw) if p.strip()]
+    if not parts:
+        raise ValueError(
+            "analysts must include at least one of: "
+            f"{', '.join(ANALYST_BY_VALUE)}"
+        )
+    unknown = [p for p in parts if p not in ANALYST_BY_VALUE]
+    if unknown:
+        raise ValueError(
+            f"unknown analyst(s): {', '.join(unknown)}; "
+            f"expected one of: {', '.join(ANALYST_BY_VALUE)}"
+        )
+    # Preserve first-seen order, drop duplicates.
+    seen: set[str] = set()
+    result: list[AnalystType] = []
+    for part in parts:
+        if part in seen:
+            continue
+        seen.add(part)
+        result.append(ANALYST_BY_VALUE[part])
+    return result
+
+
+def validate_research_depth_arg(value: int) -> int:
+    """Validate CLI research depth (1 / 3 / 5)."""
+    try:
+        depth = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("research depth must be an integer (1, 3, or 5)") from exc
+    if depth not in VALID_RESEARCH_DEPTHS:
+        raise ValueError("research depth must be one of: 1, 3, 5")
+    return depth
+
+
+def validate_provider_arg(value: str) -> str:
+    """Validate a CLI LLM provider key against the supported provider table."""
+    if value is None or not str(value).strip():
+        raise ValueError("provider must be a non-empty provider key")
+    key = str(value).strip().lower()
+    known = known_provider_keys()
+    if key not in known:
+        raise ValueError(
+            f"unknown provider {value!r}; expected one of: {', '.join(sorted(known))}"
+        )
+    return key

@@ -172,10 +172,42 @@ cp .env.example .env
 
 Launch the interactive CLI:
 ```bash
-tradingagents          # installed command
-python -m cli.main     # alternative: run directly from source
+tradingagents analyze  # installed command
+python -m cli.main analyze  # alternative: run directly from source
 ```
 You will see a screen where you can select your desired tickers, analysis date, LLM provider, research depth, and more.
+
+Pass any subset of flags to skip the matching prompts (CLI args win over `TRADINGAGENTS_*` env vars; omitted flags still prompt interactively):
+
+```bash
+tradingagents analyze NVDA \
+  --date 2026-07-16 \
+  --language Chinese \
+  --analysts market,social,news,fundamentals \
+  --research-depth 5 \
+  --provider deepseek \
+  --quick-model deepseek-v4-flash \
+  --deep-model deepseek-v4-pro \
+  --no-save-report \
+  --no-display-report
+```
+
+| Flag | Description |
+|------|-------------|
+| `TICKER` / `--ticker` | Symbol (e.g. `NVDA`, `0700.HK`, `BTC-USD`) |
+| `--date` | Analysis date `YYYY-MM-DD` |
+| `--mandate` | Optional focus / constraints |
+| `--language` | Report language (e.g. `Chinese`, `English`) |
+| `--analysts` | Comma-separated: `market,social,news,fundamentals` |
+| `--research-depth` | `1` (shallow), `3` (medium), or `5` (deep) |
+| `--provider` | LLM provider key (e.g. `deepseek`) |
+| `--backend-url` | Override provider endpoint |
+| `--quick-model` / `--deep-model` | Model ids |
+| `--save-report` / `--no-save-report` | Skip the post-run save prompt |
+| `--report-dir` | Directory used with `--save-report` |
+| `--display-report` / `--no-display-report` | Skip the post-run display prompt |
+| `--checkpoint` / `--no-checkpoint` | Checkpoint resume for this run |
+| `--clear-checkpoints` | Delete saved checkpoints before running |
 
 ### Markets and tickers
 
