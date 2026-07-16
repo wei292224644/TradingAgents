@@ -192,22 +192,7 @@ tradingagents analyze NVDA \
   --no-display-report
 ```
 
-| Flag | Description |
-|------|-------------|
-| `TICKER` / `--ticker` | Symbol (e.g. `NVDA`, `0700.HK`, `BTC-USD`) |
-| `--date` | Analysis date `YYYY-MM-DD` |
-| `--mandate` | Optional focus / constraints |
-| `--language` | Report language (e.g. `Chinese`, `English`) |
-| `--analysts` | Comma-separated: `market,social,news,fundamentals` |
-| `--research-depth` | `1` (shallow), `3` (medium), or `5` (deep) |
-| `--provider` | LLM provider key (e.g. `deepseek`) |
-| `--backend-url` | Override provider endpoint |
-| `--quick-model` / `--deep-model` | Model ids |
-| `--save-report` / `--no-save-report` | Skip the post-run save prompt |
-| `--report-dir` | Directory used with `--save-report` |
-| `--display-report` / `--no-display-report` | Skip the post-run display prompt |
-| `--checkpoint` / `--no-checkpoint` | Checkpoint resume for this run |
-| `--clear-checkpoints` | Delete saved checkpoints before running |
+完整参数说明（每个 flag 的含义、合法值、与环境变量对应关系、Agent 用法）见 **[docs/cli.md](docs/cli.md)**。
 
 ### Markets and tickers
 
