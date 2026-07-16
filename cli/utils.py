@@ -1,4 +1,6 @@
+import datetime
 import os
+import re
 from pathlib import Path
 
 import questionary
@@ -19,6 +21,10 @@ ANALYST_ORDER = [
     ("News Analyst", AnalystType.NEWS),
     ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
 ]
+
+ANALYST_BY_VALUE = {analyst.value: analyst for _, analyst in ANALYST_ORDER}
+
+VALID_RESEARCH_DEPTHS = frozenset({1, 3, 5})
 
 CRYPTO_SUFFIXES = ("-USD", "-USDT", "-USDC", "-BTC", "-ETH")
 
@@ -203,6 +209,7 @@ def select_research_depth() -> int:
         choices=[
             questionary.Choice(display, value=value) for display, value in DEPTH_OPTIONS
         ],
+        default=5,
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
             [
@@ -436,6 +443,7 @@ def select_llm_provider() -> tuple[str, str | None]:
             questionary.Choice(display, value=(provider_key, url))
             for display, provider_key, url in PROVIDERS
         ],
+        default=("deepseek", "https://api.deepseek.com"),
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
             [
@@ -679,8 +687,8 @@ def ask_output_language() -> str:
     choice = questionary.select(
         "Select Output Language:",
         choices=[
-            questionary.Choice("English (default)", "English"),
-            questionary.Choice("Chinese (中文)", "Chinese"),
+            questionary.Choice("Chinese (中文) (default)", "Chinese"),
+            questionary.Choice("English", "English"),
             questionary.Choice("Japanese (日本語)", "Japanese"),
             questionary.Choice("Korean (한국어)", "Korean"),
             questionary.Choice("Hindi (हिन्दी)", "Hindi"),
@@ -692,6 +700,7 @@ def ask_output_language() -> str:
             questionary.Choice("Russian (Русский)", "Russian"),
             questionary.Choice("Custom language", "custom"),
         ],
+        default="Chinese",
         style=questionary.Style([
             ("selected", "fg:yellow noinherit"),
             ("highlighted", "fg:yellow noinherit"),
@@ -699,14 +708,104 @@ def ask_output_language() -> str:
         ]),
     ).ask()
 
-    # Output language has a sensible default, so a cancel falls back to English
+    # Output language has a sensible default, so a cancel falls back to Chinese
     # rather than exiting the run (unlike the required model/provider prompts).
     if choice is None:
-        return "English"
+        return "Chinese"
     if choice == "custom":
         return (questionary.text(
             "Enter language name (e.g. Turkish, Vietnamese, Thai, Indonesian):",
             validate=lambda x: len(x.strip()) > 0 or "Please enter a language name.",
-        ).ask() or "").strip() or "English"
+        ).ask() or "").strip() or "Chinese"
 
     return choice
+
+
+def known_provider_keys() -> set[str]:
+    """Return the set of provider keys accepted by the CLI / provider table."""
+    return {provider_key for _, provider_key, _ in _llm_provider_table()}
+
+
+def validate_ticker_arg(value: str) -> str:
+    """Validate and normalize a CLI ticker argument.
+
+    Empty input is rejected here (unlike the interactive prompt, which falls
+    back to SPY) so an explicit ``--ticker`` / positional ticker must be real.
+    """
+    if value is None or not str(value).strip():
+        raise ValueError("ticker must be a non-empty symbol")
+    raw = str(value).strip()
+    if not is_valid_ticker_input(raw):
+        raise ValueError(
+            f"invalid ticker {raw!r}; examples: {TICKER_INPUT_EXAMPLES}, GC=F"
+        )
+    return normalize_ticker_symbol(raw)
+
+
+def validate_analysis_date_arg(value: str) -> str:
+    """Validate a CLI analysis date (YYYY-MM-DD, not in the future)."""
+    raw = str(value).strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", raw):
+        raise ValueError("date must use YYYY-MM-DD format")
+    try:
+        parsed = datetime.datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError(f"invalid calendar date: {raw}") from exc
+    if parsed.date() > datetime.datetime.now().date():
+        raise ValueError("analysis date cannot be in the future")
+    return raw
+
+
+def parse_analysts_arg(value: str) -> list[AnalystType]:
+    """Parse ``market,social,news`` or space-separated analyst names."""
+    if value is None or not str(value).strip():
+        raise ValueError(
+            "analysts must be a non-empty comma-separated list "
+            f"(one of: {', '.join(ANALYST_BY_VALUE)})"
+        )
+    raw = str(value).strip()
+    parts = [p.strip().lower() for p in re.split(r"[,\s]+", raw) if p.strip()]
+    if not parts:
+        raise ValueError(
+            "analysts must include at least one of: "
+            f"{', '.join(ANALYST_BY_VALUE)}"
+        )
+    unknown = [p for p in parts if p not in ANALYST_BY_VALUE]
+    if unknown:
+        raise ValueError(
+            f"unknown analyst(s): {', '.join(unknown)}; "
+            f"expected one of: {', '.join(ANALYST_BY_VALUE)}"
+        )
+    # Preserve first-seen order, drop duplicates.
+    seen: set[str] = set()
+    result: list[AnalystType] = []
+    for part in parts:
+        if part in seen:
+            continue
+        seen.add(part)
+        result.append(ANALYST_BY_VALUE[part])
+    return result
+
+
+def validate_research_depth_arg(value: int) -> int:
+    """Validate CLI research depth (1 / 3 / 5)."""
+    try:
+        depth = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("research depth must be an integer (1, 3, or 5)") from exc
+    if depth not in VALID_RESEARCH_DEPTHS:
+        raise ValueError("research depth must be one of: 1, 3, 5")
+    return depth
+
+
+def validate_provider_arg(value: str) -> str:
+    """Validate a CLI LLM provider key against the supported provider table."""
+    if value is None or not str(value).strip():
+        raise ValueError("provider must be a non-empty provider key")
+    key = str(value).strip().lower()
+    known = known_provider_keys()
+    if key not in known:
+        raise ValueError(
+            f"unknown provider {value!r}; expected one of: {', '.join(sorted(known))}"
+        )
+    return key
